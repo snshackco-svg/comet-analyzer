@@ -83,6 +83,7 @@ export async function processVideoData(
 
         // シート行データを作成
         const rowData: SheetRowData = {
+          platform: platformName,
           date: dateStr,
           video_url: data.video_url,
           views: data.views,

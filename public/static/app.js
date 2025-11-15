@@ -2,43 +2,8 @@
 const appState = {
   processing: false,
   platform: 'tiktok', // デフォルトはTikTok
-  config: {
-    spreadsheet_id: '',
-    google_credentials: '',
-  },
   logs: [],
 };
-
-// ローカルストレージからの設定読み込み
-function loadConfig() {
-  const savedConfig = localStorage.getItem('comet_analyzer_config');
-  if (savedConfig) {
-    try {
-      const parsed = JSON.parse(savedConfig);
-      appState.config = { ...appState.config, ...parsed };
-      updateConfigUI();
-    } catch (error) {
-      console.error('設定の読み込みに失敗しました:', error);
-    }
-  }
-}
-
-// ローカルストレージへの設定保存
-function saveConfig() {
-  localStorage.setItem('comet_analyzer_config', JSON.stringify(appState.config));
-}
-
-// UI更新
-function updateConfigUI() {
-  document.getElementById('spreadsheet_id').value = appState.config.spreadsheet_id;
-  document.getElementById('google_credentials').value = appState.config.google_credentials;
-  
-  // プラットフォーム選択を復元
-  const platformSelect = document.getElementById('platform');
-  if (platformSelect && appState.platform) {
-    platformSelect.value = appState.platform;
-  }
-}
 
 // ログ追加
 function addLog(message, type = 'info') {
@@ -89,21 +54,6 @@ function updateStats(result) {
   statsCard.classList.remove('hidden');
 }
 
-// 設定の検証
-function validateConfig() {
-  if (!appState.config.spreadsheet_id) {
-    throw new Error('スプレッドシートIDが設定されていません');
-  }
-  if (!appState.config.google_credentials) {
-    throw new Error('Google認証情報が設定されていません');
-  }
-  try {
-    JSON.parse(appState.config.google_credentials);
-  } catch (error) {
-    throw new Error('Google認証情報のJSON形式が正しくありません');
-  }
-}
-
 // メイン処理
 async function processData() {
   const fileInput = document.getElementById('csv_file');
@@ -114,19 +64,7 @@ async function processData() {
     return;
   }
 
-  // 設定を保存
   appState.platform = document.getElementById('platform').value;
-  appState.config.spreadsheet_id = document.getElementById('spreadsheet_id').value.trim();
-  appState.config.google_credentials = document.getElementById('google_credentials').value.trim();
-  saveConfig();
-
-  // 検証
-  try {
-    validateConfig();
-  } catch (error) {
-    addLog(error.message, 'error');
-    return;
-  }
 
   setProcessing(true);
   clearLogs();
@@ -142,10 +80,10 @@ async function processData() {
     formData.append('config', JSON.stringify({
       platform: appState.platform,
       sheets: {
-        spreadsheet_id: appState.config.spreadsheet_id,
-        sheet_name: '', // シート名はプラットフォームに応じてバックエンドで自動設定
+        spreadsheet_id: '', // 環境変数から取得
+        sheet_name: '', // シート名はバックエンドで自動設定
       },
-      google_credentials: appState.config.google_credentials,
+      google_credentials: '', // 環境変数から取得
       column_mapping: null, // デフォルトマッピングを使用
     }));
 
@@ -197,19 +135,54 @@ async function processData() {
   }
 }
 
-// 設定の展開/折りたたみ
-function toggleConfig() {
-  const configContent = document.getElementById('config_content');
-  const toggleIcon = document.getElementById('config_toggle_icon');
+// CSVダウンロード処理
+async function downloadCSV() {
+  const downloadButton = document.getElementById('download_button');
+  const platform = document.getElementById('download_platform').value;
+  
+  const originalHtml = downloadButton.innerHTML;
+  downloadButton.disabled = true;
+  downloadButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>ダウンロード中...';
 
-  if (configContent.classList.contains('hidden')) {
-    configContent.classList.remove('hidden');
-    toggleIcon.classList.remove('fa-chevron-down');
-    toggleIcon.classList.add('fa-chevron-up');
-  } else {
-    configContent.classList.add('hidden');
-    toggleIcon.classList.remove('fa-chevron-up');
-    toggleIcon.classList.add('fa-chevron-down');
+  try {
+    addLog('CSVダウンロードを開始...', 'info');
+    
+    const response = await fetch(`/api/download?platform=${platform}`);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'ダウンロードに失敗しました');
+    }
+
+    // Blobとしてダウンロード
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    // ファイル名を取得（レスポンスヘッダーから）
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = 'comet_analyzer.csv';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="(.+)"/);
+      if (match) {
+        filename = match[1];
+      }
+    }
+    
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    addLog(`✅ CSVダウンロード完了: ${filename}`, 'success');
+  } catch (error) {
+    addLog(`❌ ダウンロードエラー: ${error.message}`, 'error');
+    console.error('ダウンロードエラー:', error);
+  } finally {
+    downloadButton.disabled = false;
+    downloadButton.innerHTML = originalHtml;
   }
 }
 
@@ -225,17 +198,14 @@ function updateFileDisplay() {
 
 // 初期化
 document.addEventListener('DOMContentLoaded', () => {
-  loadConfig();
-
   // イベントリスナー設定
   document.getElementById('process_button').addEventListener('click', processData);
-  document.getElementById('config_toggle').addEventListener('click', toggleConfig);
+  document.getElementById('download_button').addEventListener('click', downloadCSV);
   document.getElementById('clear_logs_button').addEventListener('click', clearLogs);
   
   // プラットフォーム選択の変更イベント
   document.getElementById('platform').addEventListener('change', (e) => {
     appState.platform = e.target.value;
-    saveConfig();
     const platformName = e.target.value === 'tiktok' ? 'TikTok' : 'Instagram';
     addLog(`プラットフォームを ${platformName} に切り替えました`, 'info');
   });
@@ -244,4 +214,5 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('csv_file').addEventListener('change', updateFileDisplay);
 
   addLog('アプリケーションが起動しました', 'success');
+  addLog('📝 設定不要！CSVファイルをアップロードするだけで使えます', 'info');
 });

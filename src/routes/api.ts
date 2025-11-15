@@ -7,6 +7,8 @@ import { getPlatformSheetName, getPlatformColumnMapping } from '../lib/platform-
 
 type Bindings = {
   AI?: any; // Cloudflare AI binding (optional)
+  SPREADSHEET_ID?: string; // Google Spreadsheet ID from environment
+  GOOGLE_CREDENTIALS?: string; // Google service account credentials from environment
 };
 
 const api = new Hono<{ Bindings: Bindings }>();
@@ -50,8 +52,18 @@ api.post('/process', async (c) => {
       );
     }
 
-    // Google認証情報の検証
-    if (!config.google_credentials) {
+    // 環境変数から設定を取得（優先）、フォールバックでリクエストから取得
+    const spreadsheetId = c.env?.SPREADSHEET_ID || config.sheets?.spreadsheet_id;
+    const googleCredentialsStr = c.env?.GOOGLE_CREDENTIALS || config.google_credentials;
+
+    if (!spreadsheetId) {
+      return c.json(
+        { success: false, error: 'スプレッドシートIDが設定されていません' },
+        400
+      );
+    }
+
+    if (!googleCredentialsStr) {
       return c.json(
         { success: false, error: 'Google認証情報が設定されていません' },
         400
@@ -60,7 +72,7 @@ api.post('/process', async (c) => {
 
     let googleCredentials: any;
     try {
-      googleCredentials = JSON.parse(config.google_credentials);
+      googleCredentials = JSON.parse(googleCredentialsStr);
     } catch (error) {
       return c.json(
         { success: false, error: 'Google認証情報のパースに失敗しました' },
@@ -94,9 +106,9 @@ api.post('/process', async (c) => {
       );
     }
 
-    // シート設定を作成
+    // シート設定を作成（環境変数優先）
     const sheetsConfig = {
-      spreadsheet_id: config.sheets.spreadsheet_id,
+      spreadsheet_id: spreadsheetId,
       sheet_name: sheetName,
     };
 
@@ -127,6 +139,100 @@ api.post('/process', async (c) => {
       {
         success: false,
         error: error.message || '処理中にエラーが発生しました',
+      },
+      500
+    );
+  }
+});
+
+/**
+ * GET /api/download
+ * スプレッドシートデータをCSVとしてダウンロード
+ */
+api.get('/download', async (c) => {
+  try {
+    // クエリパラメータから取得
+    const platform = c.req.query('platform') as Platform | 'all' | undefined;
+    
+    // 環境変数から設定を取得
+    const spreadsheetId = c.env?.SPREADSHEET_ID;
+    const googleCredentialsStr = c.env?.GOOGLE_CREDENTIALS;
+
+    if (!spreadsheetId || !googleCredentialsStr) {
+      return c.json(
+        { success: false, error: '環境変数が設定されていません' },
+        400
+      );
+    }
+
+    let googleCredentials: any;
+    try {
+      googleCredentials = JSON.parse(googleCredentialsStr);
+    } catch (error) {
+      return c.json(
+        { success: false, error: 'Google認証情報のパースに失敗しました' },
+        400
+      );
+    }
+
+    // シート設定（統一シート名）
+    const sheetsConfig = {
+      spreadsheet_id: spreadsheetId,
+      sheet_name: '動画データ',
+    };
+
+    // データ取得用の関数をインポート
+    const { getAllSheetData } = await import('../lib/sheets-manager');
+    const allData = await getAllSheetData(googleCredentials, sheetsConfig);
+
+    if (allData.length === 0) {
+      return c.json({ success: false, error: 'データが見つかりません' }, 404);
+    }
+
+    // フィルタリング
+    let filteredData = allData;
+    if (platform && platform !== 'all') {
+      const platformName = platform === 'tiktok' ? 'TikTok' : 'Instagram';
+      // ヘッダー行を保持し、データ行をフィルタリング
+      filteredData = [
+        allData[0], // ヘッダー行
+        ...allData.slice(1).filter(row => row[0] === platformName)
+      ];
+    }
+
+    // CSV形式に変換
+    const csvContent = filteredData
+      .map(row => row.map(cell => {
+        // カンマやダブルクォートを含むセルをエスケープ
+        const cellStr = String(cell || '');
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`;
+        }
+        return cellStr;
+      }).join(','))
+      .join('\n');
+
+    // BOMを追加（Excel対応）
+    const bom = '\uFEFF';
+    const csvWithBom = bom + csvContent;
+
+    // ファイル名を生成
+    const timestamp = new Date().toISOString().split('T')[0];
+    const platformSuffix = platform && platform !== 'all' ? `_${platform}` : '';
+    const filename = `comet_analyzer${platformSuffix}_${timestamp}.csv`;
+
+    return new Response(csvWithBom, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (error: any) {
+    console.error('CSV Download Error:', error);
+    return c.json(
+      {
+        success: false,
+        error: error.message || 'ダウンロード中にエラーが発生しました',
       },
       500
     );

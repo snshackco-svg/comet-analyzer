@@ -1,10 +1,15 @@
 import { Platform, PlatformConfig, ColumnMapping } from '../types';
 
 /**
+ * 共通シート名（すべてのプラットフォームで使用）
+ */
+const SHARED_SHEET_NAME = '動画データ';
+
+/**
  * TikTok用のデフォルト設定
  */
 const TIKTOK_CONFIG: PlatformConfig = {
-  sheet_name: 'TikTok動画データ',
+  sheet_name: SHARED_SHEET_NAME,
   display_name: 'TikTok',
   column_mapping: {
     video_url: 'video_url',
@@ -20,7 +25,7 @@ const TIKTOK_CONFIG: PlatformConfig = {
  * Instagram用のデフォルト設定
  */
 const INSTAGRAM_CONFIG: PlatformConfig = {
-  sheet_name: 'Instagram動画データ',
+  sheet_name: SHARED_SHEET_NAME,
   display_name: 'Instagram',
   column_mapping: {
     video_url: 'video_url',

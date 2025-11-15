@@ -35,6 +35,7 @@ export interface CalculatedMetrics {
 
 // スプレッドシート出力用のデータ
 export interface SheetRowData extends VideoData, CalculatedMetrics {
+  platform: string; // プラットフォーム名（TikTok/Instagram）
   date: string; // 取得日時
   analysis: string; // AI分析結果
   memo: string; // メモ/タグ

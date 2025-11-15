@@ -99,6 +99,43 @@ async function getAccessToken(credentials: any): Promise<string> {
 }
 
 /**
+ * スプレッドシートから全データを取得（CSVダウンロード用）
+ */
+export async function getAllSheetData(
+  credentials: any,
+  config: SheetsConfig
+): Promise<any[][]> {
+  try {
+    const accessToken = await getAccessToken(credentials);
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return [];
+      }
+      const error = await response.text();
+      throw new Error(`データ取得エラー: ${error}`);
+    }
+
+    const data = await response.json();
+    return data.values || [];
+  } catch (error: any) {
+    if (error.message?.includes('not found')) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+/**
  * スプレッドシートから既存のデータを取得（重複チェック用）
  */
 export async function getExistingVideoUrls(
@@ -109,7 +146,7 @@ export async function getExistingVideoUrls(
     const accessToken = await getAccessToken(credentials);
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!B:B`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!C:C`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -159,24 +196,25 @@ export async function appendRowsToSheet(
 
   // データを配列形式に変換
   const values = rows.map((row) => [
-    row.date, // A列: 取得日
-    row.video_url, // B列: 動画リンク
-    row.views, // C列: 再生数
-    row.likes, // D列: いいね数
-    row.saves, // E列: 保存数
-    row.comments, // F列: コメント数
-    row.shares, // G列: シェア数
-    row.like_rate, // H列: いいね率
-    row.save_rate, // I列: 保存率
-    row.comment_rate, // J列: コメント率
-    row.share_rate, // K列: シェア率
-    row.engagement_rate, // L列: エンゲージメント率
-    row.analysis, // M列: 分析結果
-    row.memo, // N列: メモ/タグ
+    row.platform, // A列: プラットフォーム
+    row.date, // B列: 取得日
+    row.video_url, // C列: 動画リンク
+    row.views, // D列: 再生数
+    row.likes, // E列: いいね数
+    row.saves, // F列: 保存数
+    row.comments, // G列: コメント数
+    row.shares, // H列: シェア数
+    row.like_rate, // I列: いいね率
+    row.save_rate, // J列: 保存率
+    row.comment_rate, // K列: コメント率
+    row.share_rate, // L列: シェア率
+    row.engagement_rate, // M列: エンゲージメント率
+    row.analysis, // N列: 分析結果
+    row.memo, // O列: メモ/タグ
   ]);
 
   const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!A:N:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!A:O:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     {
       method: 'POST',
       headers: {
@@ -266,7 +304,7 @@ export async function ensureSheetExists(
 
       // ヘッダー行を追加
       await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!A1:N1?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!A1:O1?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
@@ -276,6 +314,7 @@ export async function ensureSheetExists(
           body: JSON.stringify({
             values: [
               [
+                'プラットフォーム',
                 '取得日',
                 '動画リンク',
                 '再生数',
@@ -301,7 +340,7 @@ export async function ensureSheetExists(
 
     // ヘッダー行が存在するか確認
     const headerResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!A1:N1`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!A1:O1`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -314,7 +353,7 @@ export async function ensureSheetExists(
     if (!headerData.values || headerData.values.length === 0) {
       // ヘッダー行を追加
       await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!A1:N1?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values/${config.sheet_name}!A1:O1?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
@@ -324,6 +363,7 @@ export async function ensureSheetExists(
           body: JSON.stringify({
             values: [
               [
+                'プラットフォーム',
                 '取得日',
                 '動画リンク',
                 '再生数',

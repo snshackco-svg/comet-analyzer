@@ -106,74 +106,38 @@ app.get('/', (c) => {
                     </button>
                 </div>
 
-                <!-- 設定カード -->
+                <!-- CSVダウンロードカード -->
                 <div class="card">
                     <div class="card-title">
-                        <span><i class="fas fa-cog mr-2"></i>設定</span>
-                        <button id="config_toggle" class="btn-toggle">
-                            <i id="config_toggle_icon" class="fas fa-chevron-down"></i>
-                        </button>
+                        <span><i class="fas fa-download mr-2"></i>データエクスポート</span>
                     </div>
 
-                    <div id="config_content" class="hidden">
-                        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
-                            <div class="flex">
-                                <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
-                                <div class="text-sm text-blue-700">
-                                    <p class="font-semibold mb-1">初回設定が必要です</p>
-                                    <ul class="list-disc list-inside space-y-1">
-                                        <li>Google Cloudコンソールでサービスアカウントを作成</li>
-                                        <li>Google Sheets APIを有効化</li>
-                                        <li>サービスアカウントのJSONキーをダウンロード</li>
-                                        <li>スプレッドシートをサービスアカウントのメールアドレスと共有</li>
-                                    </ul>
-                                </div>
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                        <div class="flex">
+                            <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
+                            <div class="text-sm text-blue-700">
+                                <p class="font-semibold mb-1">Google Sheetsのデータをダウンロード</p>
+                                <p>スプレッドシートに保存されているデータをCSVファイルとしてダウンロードできます</p>
                             </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="spreadsheet_id" class="form-label">
-                                スプレッドシートID <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="spreadsheet_id"
-                                class="form-input"
-                                placeholder="例: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
-                            />
-                            <p class="text-xs text-gray-500 mt-1">
-                                スプレッドシートのURLから抽出: https://docs.google.com/spreadsheets/d/<strong>スプレッドシートID</strong>/edit
-                            </p>
-                        </div>
-
-                        <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
-                            <div class="flex">
-                                <i class="fas fa-info-circle text-green-500 mt-1 mr-3"></i>
-                                <div class="text-sm text-green-700">
-                                    <p class="font-semibold mb-1">シート名について</p>
-                                    <p>選択したプラットフォームに応じて、自動的に適切なシートに保存されます：</p>
-                                    <ul class="list-disc list-inside space-y-1 mt-2">
-                                        <li><strong>TikTok</strong>: 「TikTok動画データ」シートに保存</li>
-                                        <li><strong>Instagram</strong>: 「Instagram動画データ」シートに保存</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="google_credentials" class="form-label">
-                                Google認証情報（JSON） <span class="text-red-500">*</span>
-                            </label>
-                            <textarea
-                                id="google_credentials"
-                                class="form-input form-textarea"
-                                placeholder='{"type": "service_account", "project_id": "...", ...}'
-                            ></textarea>
-                            <p class="text-xs text-gray-500 mt-1">
-                                サービスアカウントのJSONキーの内容をそのまま貼り付けてください
-                            </p>
                         </div>
                     </div>
+
+                    <div class="form-group">
+                        <label for="download_platform" class="form-label">
+                            <i class="fas fa-filter mr-2"></i>
+                            ダウンロードするデータ
+                        </label>
+                        <select id="download_platform" class="form-input">
+                            <option value="all">全データ（TikTok + Instagram）</option>
+                            <option value="tiktok">TikTokのみ</option>
+                            <option value="instagram">Instagramのみ</option>
+                        </select>
+                    </div>
+
+                    <button id="download_button" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <i class="fas fa-file-download mr-2"></i>
+                        CSVダウンロード
+                    </button>
                 </div>
 
                 <!-- ログカード -->
