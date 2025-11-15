@@ -37,12 +37,15 @@
 
 ## 🚀 現在のURL
 
+### 本番環境（モバイル対応版 ✨）
+- **Production URL**: https://426869a7.comet-analyzer.pages.dev
+- **プロジェクト**: comet-analyzer
+- **プラットフォーム**: Cloudflare Pages
+- **最終デプロイ**: 2025-11-15
+
 ### 開発環境
 - **Sandbox URL**: https://3000-ik4b2rxylqqe2sbqg2wuz-82b888ba.sandbox.novita.ai
 - **ローカル**: http://localhost:3000
-
-### 本番環境
-- 準備中（Cloudflare Pagesへデプロイ予定）
 
 ## 📊 出力データ仕様
 
@@ -179,9 +182,10 @@ webapp/
 ### 技術スタック
 
 - **バックエンド**: Hono (Cloudflare Workers)
-- **フロントエンド**: Vanilla JS + TailwindCSS
+- **フロントエンド**: Vanilla JS + TailwindCSS (モバイル対応)
+- **AI分析**: Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct)
 - **CSVパーサー**: PapaParse
-- **デプロイ**: Cloudflare Pages
+- **デプロイ**: Cloudflare Pages (本番稼働中 ✅)
 - **開発ツール**: Vite, Wrangler, PM2
 
 ### ローカル開発
