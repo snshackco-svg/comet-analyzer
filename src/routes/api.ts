@@ -614,14 +614,14 @@ api.post('/fetch-apify', async (c) => {
     // データを処理してスプレッドシートに保存
     const processTimer = new PerformanceTimer('Process & Save');
     const result = await processVideoData(
+      platform,
       apifyResult.videos,
-      googleCredentials,
       {
         spreadsheet_id: spreadsheetId!,
         sheet_name: sheetName,
       },
-      c.env?.AI,
-      platform
+      googleCredentials,
+      c.env?.AI
     );
     processTimer.end(`Processed ${result.total_count} videos`);
 
