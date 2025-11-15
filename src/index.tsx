@@ -10,6 +10,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 // 静的ファイルの提供
 app.use('/static/*', serveStatic({ root: './public' }));
+app.use('/favicon.svg', serveStatic({ root: './public', path: './favicon.svg' }));
 
 // APIルート
 app.route('/api', api);
@@ -23,6 +24,7 @@ app.get('/', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Comet Analyzer - TikTokデータ収集＆分析ツール</title>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <link href="/static/styles.css" rel="stylesheet">
