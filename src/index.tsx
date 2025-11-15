@@ -106,6 +106,69 @@ app.get('/', (c) => {
                     </button>
                 </div>
 
+                <!-- Apify自動収集カード -->
+                <div class="card">
+                    <div class="card-title">
+                        <span><i class="fas fa-robot mr-2"></i>Apify自動データ収集</span>
+                    </div>
+
+                    <div class="bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-purple-500 p-4 mb-4">
+                        <div class="flex">
+                            <i class="fas fa-magic text-purple-500 text-2xl mt-1 mr-3"></i>
+                            <div class="text-sm text-purple-800">
+                                <p class="font-bold mb-1">🚀 ハッシュタグからトレンド動画を自動収集</p>
+                                <p class="mb-2">ボタン1つでTikTok/Instagramのトレンド動画データを自動取得し、AI分析してスプレッドシートに保存します。</p>
+                                <ul class="list-disc list-inside space-y-1 text-xs">
+                                    <li>Comet不要、完全自動化</li>
+                                    <li>複数ハッシュタグ一括検索</li>
+                                    <li>AI分析自動生成（1000文字）</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ハッシュタグ設定 -->
+                    <div class="form-group">
+                        <label for="apify_hashtags" class="form-label">
+                            <i class="fas fa-hashtag mr-2"></i>
+                            検索ハッシュタグ（カンマ区切り）
+                        </label>
+                        <input 
+                            type="text" 
+                            id="apify_hashtags" 
+                            class="form-input" 
+                            placeholder="例: fyp, viral, trending, おすすめ"
+                            value="fyp, viral, trending"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">
+                            複数のハッシュタグをカンマで区切って入力してください（#記号は不要）
+                        </p>
+                    </div>
+
+                    <!-- 取得件数設定 -->
+                    <div class="form-group">
+                        <label for="apify_results" class="form-label">
+                            <i class="fas fa-list-ol mr-2"></i>
+                            取得件数
+                        </label>
+                        <select id="apify_results" class="form-input">
+                            <option value="20">20件（テスト用）</option>
+                            <option value="50" selected>50件（推奨）</option>
+                            <option value="100">100件</option>
+                            <option value="200">200件</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">
+                            💰 料金目安: 50件 = 約$0.50、100件 = 約$1.00
+                        </p>
+                    </div>
+
+                    <!-- Apify実行ボタン -->
+                    <button id="apify_fetch_button" class="btn-primary" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                        <i class="fas fa-robot mr-2"></i>
+                        Apifyで自動収集＆AI分析
+                    </button>
+                </div>
+
                 <!-- CSVダウンロードカード -->
                 <div class="card">
                     <div class="card-title">

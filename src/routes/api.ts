@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { parseCSV } from '../lib/csv-parser';
 import { processVideoData } from '../lib/processor';
-import { AppConfig, Platform } from '../types';
+import { AppConfig, Platform, VideoData } from '../types';
 import { getPlatformSheetName, getPlatformColumnMapping } from '../lib/platform-config';
 import {
   debugLog,
@@ -12,11 +12,13 @@ import {
   validateSpreadsheetConfig,
   validateCSVData,
 } from '../lib/debug';
+import { fetchFromApify } from '../lib/apify-client';
 
 type Bindings = {
   AI?: any; // Cloudflare AI binding (optional)
   SPREADSHEET_ID?: string; // Google Spreadsheet ID from environment
   GOOGLE_CREDENTIALS?: string; // Google service account credentials from environment
+  APIFY_TOKEN?: string; // Apify API token from environment
 };
 
 const api = new Hono<{ Bindings: Bindings }>();
@@ -438,6 +440,220 @@ api.get('/download', async (c) => {
       {
         success: false,
         error: error.message || 'ダウンロード中にエラーが発生しました',
+      },
+      500
+    );
+  }
+});
+
+/**
+ * POST /api/fetch-apify
+ * Apify経由でTikTok/Instagramのデータを自動取得して処理
+ */
+api.post('/fetch-apify', async (c) => {
+  const timer = new PerformanceTimer('API /fetch-apify');
+
+  try {
+    debugLog('API /fetch-apify', 'Request received');
+    const body = await c.req.json();
+
+    // パラメータを取得
+    const platform: Platform = body.platform || 'tiktok';
+    const hashtags: string[] = body.hashtags || [];
+    const resultsPerPage: number = body.results_per_page || 50;
+
+    debugLog('API /fetch-apify', 'Request parameters', {
+      platform,
+      hashtags,
+      resultsPerPage,
+    });
+
+    // パラメータ検証
+    if (!hashtags || hashtags.length === 0) {
+      const error = createDetailedError(
+        'API /fetch-apify',
+        new Error('ハッシュタグが指定されていません'),
+        { hashtags }
+      );
+      errorLog('API /fetch-apify', 'Hashtag validation failed', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: '少なくとも1つのハッシュタグを指定してください。',
+          debug: error,
+        },
+        400
+      );
+    }
+
+    // 環境変数からApifyトークンを取得
+    const apifyToken = c.env?.APIFY_TOKEN;
+    if (!apifyToken) {
+      const error = createDetailedError(
+        'API /fetch-apify',
+        new Error('Apify APIトークンが設定されていません'),
+        { hasToken: !!apifyToken }
+      );
+      errorLog('API /fetch-apify', 'Apify token not found', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion:
+            'Cloudflareダッシュボードで環境変数 APIFY_TOKEN を設定してください。',
+          debug: error,
+        },
+        500
+      );
+    }
+
+    // Apifyからデータを取得
+    const apifyTimer = new PerformanceTimer('Apify Fetch');
+    const apifyResult = await fetchFromApify(
+      platform,
+      hashtags,
+      resultsPerPage,
+      apifyToken
+    );
+    apifyTimer.end(`Fetched ${apifyResult.videos.length} videos`);
+
+    if (!apifyResult.success) {
+      const error = createDetailedError(
+        'API /fetch-apify - Apify Fetch',
+        new Error(apifyResult.error || 'Apifyからのデータ取得に失敗しました'),
+        apifyResult.debug
+      );
+      errorLog('API /fetch-apify', 'Apify fetch failed', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: error.suggestion,
+          debug: error,
+        },
+        500
+      );
+    }
+
+    debugLog('API /fetch-apify', 'Apify data fetched successfully', {
+      videoCount: apifyResult.videos.length,
+    });
+
+    // 環境変数から設定を取得
+    const spreadsheetId = c.env?.SPREADSHEET_ID;
+    const googleCredentialsStr = c.env?.GOOGLE_CREDENTIALS;
+
+    debugLog('API /fetch-apify', 'Validating spreadsheet config', {
+      hasSpreadsheetId: !!spreadsheetId,
+      hasCredentials: !!googleCredentialsStr,
+    });
+
+    // 設定のバリデーション
+    const validation = validateSpreadsheetConfig(
+      spreadsheetId,
+      googleCredentialsStr
+    );
+
+    if (!validation.valid) {
+      const error = createDetailedError(
+        'API /fetch-apify - Config Validation',
+        new Error(validation.errors.join(', ')),
+        {
+          errors: validation.errors,
+          warnings: validation.warnings,
+        }
+      );
+      errorLog('API /fetch-apify', 'Config validation failed', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: error.suggestion,
+          validation: validation,
+          debug: error,
+        },
+        400
+      );
+    }
+
+    let googleCredentials: any;
+    try {
+      googleCredentials = JSON.parse(googleCredentialsStr!);
+      debugLog('API /fetch-apify', 'Google credentials parsed successfully');
+    } catch (error) {
+      const detailedError = createDetailedError(
+        'API /fetch-apify - Credentials Parse',
+        error,
+        {
+          credentialsPreview: googleCredentialsStr?.substring(0, 50),
+        }
+      );
+      errorLog('API /fetch-apify', 'Credentials parse failed', detailedError);
+      return c.json(
+        {
+          success: false,
+          error: detailedError.message,
+          suggestion: detailedError.suggestion,
+          debug: detailedError,
+        },
+        400
+      );
+    }
+
+    // プラットフォーム固有のシート名を取得
+    const sheetName = getPlatformSheetName(platform);
+
+    debugLog('API /fetch-apify', 'Processing video data', {
+      sheetName,
+      platform,
+      videoCount: apifyResult.videos.length,
+    });
+
+    // データを処理してスプレッドシートに保存
+    const processTimer = new PerformanceTimer('Process & Save');
+    const result = await processVideoData(
+      apifyResult.videos,
+      googleCredentials,
+      {
+        spreadsheet_id: spreadsheetId!,
+        sheet_name: sheetName,
+      },
+      c.env?.AI,
+      platform
+    );
+    processTimer.end(`Processed ${result.total_count} videos`);
+
+    debugLog('API /fetch-apify', 'Processing completed', result);
+
+    const totalTime = timer.end();
+
+    return c.json({
+      success: result.success,
+      result: {
+        ...result,
+        source: 'apify', // データソース識別用
+      },
+      performance: {
+        totalTime,
+      },
+    });
+  } catch (error: any) {
+    const detailedError = createDetailedError(
+      'API /fetch-apify',
+      error,
+      {
+        stack: error.stack,
+      }
+    );
+    errorLog('API /fetch-apify', 'Unexpected error', detailedError);
+
+    return c.json(
+      {
+        success: false,
+        error: detailedError.message,
+        suggestion: detailedError.suggestion,
+        debug: detailedError,
       },
       500
     );

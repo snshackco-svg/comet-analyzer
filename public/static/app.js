@@ -291,12 +291,126 @@ function updateFileDisplay() {
   }
 }
 
+// Apify自動データ収集
+async function fetchFromApify() {
+  if (appState.processing) {
+    addLog('すでに処理中です', 'warning');
+    return;
+  }
+
+  const apifyButton = document.getElementById('apify_fetch_button');
+  const originalHtml = apifyButton.innerHTML;
+  
+  try {
+    setProcessing(true);
+    apifyButton.disabled = true;
+    apifyButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Apify実行中...（数分かかります）';
+
+    // パラメータを取得
+    const platform = appState.platform;
+    const hashtagsInput = document.getElementById('apify_hashtags').value;
+    const resultsPerPage = parseInt(document.getElementById('apify_results').value);
+
+    // ハッシュタグをパース（カンマ区切り、空白を削除、#を削除）
+    const hashtags = hashtagsInput
+      .split(',')
+      .map(tag => tag.trim().replace(/^#/, ''))
+      .filter(tag => tag.length > 0);
+
+    if (hashtags.length === 0) {
+      addLog('❌ ハッシュタグを入力してください', 'error');
+      return;
+    }
+
+    const platformName = platform === 'tiktok' ? 'TikTok' : 'Instagram';
+    addLog(`🚀 Apify経由で${platformName}のデータ収集を開始します`, 'info');
+    addLog(`📍 検索ハッシュタグ: ${hashtags.join(', ')}`, 'info');
+    addLog(`📊 取得件数: ${resultsPerPage}件`, 'info');
+    addLog('⏳ Apifyがデータを収集しています...（通常1-3分かかります）', 'warning');
+
+    // APIリクエスト
+    const response = await fetch('/api/fetch-apify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        platform: platform,
+        hashtags: hashtags,
+        results_per_page: resultsPerPage,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      addLog('❌ Apifyデータ取得エラー', 'error');
+      if (data.error) {
+        addDetailedErrorLog(data.error, data.debug);
+      }
+      
+      // バリデーションエラーの詳細表示
+      if (data.validation && data.validation.errors.length > 0) {
+        data.validation.errors.forEach(err => addLog(`  • ${err}`, 'error'));
+      }
+      if (data.validation && data.validation.warnings.length > 0) {
+        data.validation.warnings.forEach(warn => addLog(`  ⚠️ ${warn}`, 'warning'));
+      }
+      
+      return;
+    }
+
+    // 成功時の結果表示
+    const result = data.result;
+    addLog('✅ Apify自動収集が完了しました！', 'success');
+    addLog(`📊 データソース: Apify (${platformName})`, 'info');
+    addLog(`🎯 総データ数: ${result.total_count}件`, 'info');
+    addLog(`✨ 新規追加: ${result.new_count}件`, 'success');
+    addLog(`⏭️ スキップ: ${result.skipped_count}件（重複）`, 'warning');
+    if (result.error_count > 0) {
+      addLog(`❌ エラー: ${result.error_count}件`, 'error');
+    }
+
+    if (data.performance) {
+      addLog(`⚡ 処理時間: ${(data.performance.totalTime / 1000).toFixed(1)}秒`, 'info');
+    }
+
+    // 統計カードを更新
+    document.getElementById('stats_card').classList.remove('hidden');
+    document.getElementById('total_count').textContent = result.total_count;
+    document.getElementById('new_count').textContent = result.new_count;
+    document.getElementById('skipped_count').textContent = result.skipped_count;
+    document.getElementById('error_count').textContent = result.error_count;
+
+    // エラーログの表示
+    if (result.errors && result.errors.length > 0) {
+      addLog('エラー詳細:', 'error');
+      result.errors.forEach((error) => addLog(`  • ${error}`, 'error'));
+    }
+
+    // 処理ログの表示
+    if (result.logs && result.logs.length > 0) {
+      result.logs.forEach((log) => addLog(`  ${log}`, 'info'));
+    }
+
+  } catch (error) {
+    addLog('❌ 予期しないエラーが発生しました', 'error');
+    addDetailedErrorLog(error.message, { error: error.toString() });
+    console.error('Apify Fetch Error:', error);
+  } finally {
+    setProcessing(false);
+    apifyButton.disabled = false;
+    apifyButton.innerHTML = originalHtml;
+  }
+}
+
 // 初期化
 document.addEventListener('DOMContentLoaded', () => {
   // イベントリスナー設定
   document.getElementById('process_button').addEventListener('click', processData);
   document.getElementById('download_button').addEventListener('click', downloadCSV);
   document.getElementById('clear_logs_button').addEventListener('click', clearLogs);
+  document.getElementById('apify_fetch_button').addEventListener('click', fetchFromApify);
   
   // プラットフォーム選択の変更イベント
   document.getElementById('platform').addEventListener('change', (e) => {
@@ -309,5 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('csv_file').addEventListener('change', updateFileDisplay);
 
   addLog('アプリケーションが起動しました', 'success');
-  addLog('📝 設定不要！CSVファイルをアップロードするだけで使えます', 'info');
+  addLog('📝 2つの収集方法が使えます:', 'info');
+  addLog('  1️⃣ Cometの手動CSV → 高精度（おすすめフィード）', 'info');
+  addLog('  2️⃣ Apify自動収集 → 完全自動（ハッシュタグ検索）', 'info');
 });

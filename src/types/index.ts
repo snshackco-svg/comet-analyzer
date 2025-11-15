@@ -73,3 +73,51 @@ export interface AppConfig {
   column_mapping?: ColumnMapping; // カスタムマッピング（省略時はプラットフォームのデフォルト使用）
   google_credentials?: string; // OAuth認証情報（JSON文字列）
 }
+
+// Apify関連の型定義
+export interface ApifyConfig {
+  tiktok_hashtags: string[]; // TikTok検索ハッシュタグ
+  instagram_hashtags: string[]; // Instagram検索ハッシュタグ
+  results_per_page: number; // 取得件数
+}
+
+// ApifyのTikTok Scraperのレスポンス型
+export interface ApifyTikTokResult {
+  id?: string;
+  webVideoUrl: string;
+  playCount: number;
+  diggCount: number; // likes
+  collectCount: number; // saves
+  commentCount: number;
+  shareCount: number;
+  createTime?: number;
+  createTimeISO?: string;
+  text?: string; // caption
+  authorMeta?: {
+    name?: string;
+    nickName?: string;
+  };
+}
+
+// ApifyのInstagram Scraperのレスポンス型
+export interface ApifyInstagramResult {
+  url: string;
+  likesCount: number;
+  commentsCount: number;
+  displayUrl?: string;
+  timestamp?: string;
+  caption?: string;
+  ownerUsername?: string;
+  ownerFullName?: string;
+  // Instagram APIには保存数とシェア数が含まれないため、0として扱う
+}
+
+// Apify API実行結果
+export interface ApifyFetchResult {
+  success: boolean;
+  platform: Platform;
+  source: 'apify'; // データソース識別用
+  videos: VideoData[];
+  error?: string;
+  debug?: any;
+}
