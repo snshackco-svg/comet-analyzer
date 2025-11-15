@@ -393,3 +393,37 @@ export async function ensureSheetExists(
     throw error;
   }
 }
+
+/**
+ * 複数のセル範囲を一括更新
+ */
+export async function updateRowsInSheet(
+  credentials: any,
+  config: SheetsConfig,
+  updates: { range: string; values: any[][] }[]
+): Promise<void> {
+  const accessToken = await getAccessToken(credentials);
+
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheet_id}/values:batchUpdate`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        valueInputOption: 'RAW',
+        data: updates.map((update) => ({
+          range: update.range,
+          values: update.values,
+        })),
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`一括更新エラー: ${error}`);
+  }
+}

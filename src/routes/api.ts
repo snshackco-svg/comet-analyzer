@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { parseCSV } from '../lib/csv-parser';
 import { processVideoData } from '../lib/processor';
-import { AppConfig, Platform, VideoData } from '../types';
+import { AppConfig, Platform, VideoData, FetchFromSheetRequest } from '../types';
 import { getPlatformSheetName, getPlatformColumnMapping } from '../lib/platform-config';
 import {
   debugLog,
@@ -13,6 +13,7 @@ import {
   validateCSVData,
 } from '../lib/debug';
 import { fetchFromApify } from '../lib/apify-client';
+import { processSheetData } from '../lib/sheet-reader';
 
 type Bindings = {
   AI?: any; // Cloudflare AI binding (optional)
@@ -647,6 +648,171 @@ api.post('/fetch-apify', async (c) => {
       }
     );
     errorLog('API /fetch-apify', 'Unexpected error', detailedError);
+
+    return c.json(
+      {
+        success: false,
+        error: detailedError.message,
+        suggestion: detailedError.suggestion,
+        debug: detailedError,
+      },
+      500
+    );
+  }
+});
+
+/**
+ * POST /api/fetch-from-sheet
+ * スプレッドシートからCometデータを読み込み、AI分析と指標を追加
+ */
+api.post('/fetch-from-sheet', async (c) => {
+  const timer = new PerformanceTimer('API /fetch-from-sheet');
+
+  try {
+    debugLog('API /fetch-from-sheet', 'Request received');
+    const body = await c.req.json<FetchFromSheetRequest>();
+
+    // パラメータを取得
+    const sourceSpreadsheetId = body.source_spreadsheet_id;
+    const sourceSheetName = body.source_sheet_name || '動画データ';
+    const targetSpreadsheetId = body.target_spreadsheet_id || sourceSpreadsheetId;
+    const targetSheetName = body.target_sheet_name || sourceSheetName;
+
+    debugLog('API /fetch-from-sheet', 'Request parameters', {
+      sourceSpreadsheetId,
+      sourceSheetName,
+      targetSpreadsheetId,
+      targetSheetName,
+    });
+
+    // パラメータ検証
+    if (!sourceSpreadsheetId) {
+      const error = createDetailedError(
+        'API /fetch-from-sheet',
+        new Error('スプレッドシートIDが指定されていません'),
+        { sourceSpreadsheetId }
+      );
+      errorLog('API /fetch-from-sheet', 'Spreadsheet ID validation failed', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: '読み込み元のスプレッドシートIDを指定してください。',
+          debug: error,
+        },
+        400
+      );
+    }
+
+    // 環境変数から設定を取得
+    const googleCredentialsStr = c.env?.GOOGLE_CREDENTIALS;
+
+    debugLog('API /fetch-from-sheet', 'Validating credentials', {
+      hasCredentials: !!googleCredentialsStr,
+    });
+
+    // 設定のバリデーション
+    const validation = validateSpreadsheetConfig(
+      sourceSpreadsheetId,
+      googleCredentialsStr
+    );
+
+    if (!validation.valid) {
+      const error = createDetailedError(
+        'API /fetch-from-sheet - Config Validation',
+        new Error(validation.errors.join(', ')),
+        {
+          errors: validation.errors,
+          warnings: validation.warnings,
+        }
+      );
+      errorLog('API /fetch-from-sheet', 'Config validation failed', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: error.suggestion,
+          validation: validation,
+          debug: error,
+        },
+        400
+      );
+    }
+
+    let googleCredentials: any;
+    try {
+      googleCredentials = JSON.parse(googleCredentialsStr!);
+      debugLog('API /fetch-from-sheet', 'Google credentials parsed successfully');
+    } catch (error) {
+      const detailedError = createDetailedError(
+        'API /fetch-from-sheet - Credentials Parse',
+        error,
+        {
+          credentialsPreview: googleCredentialsStr?.substring(0, 50),
+        }
+      );
+      errorLog('API /fetch-from-sheet', 'Credentials parse failed', detailedError);
+      return c.json(
+        {
+          success: false,
+          error: detailedError.message,
+          suggestion: detailedError.suggestion,
+          debug: detailedError,
+        },
+        400
+      );
+    }
+
+    // プラットフォームは最初の行から判定（後で実装）
+    // とりあえずTikTokとして処理
+    const platform: Platform = 'tiktok';
+
+    debugLog('API /fetch-from-sheet', 'Processing sheet data', {
+      sourceSpreadsheetId,
+      sourceSheetName,
+      platform,
+    });
+
+    // スプレッドシートからデータ読み込み → 処理 → 更新
+    const processTimer = new PerformanceTimer('Process Sheet Data');
+    const result = await processSheetData(
+      googleCredentials,
+      {
+        spreadsheet_id: sourceSpreadsheetId,
+        sheet_name: sourceSheetName,
+      },
+      {
+        spreadsheet_id: targetSpreadsheetId,
+        sheet_name: targetSheetName,
+      },
+      platform,
+      c.env?.AI
+    );
+    processTimer.end(`Processed ${result.total_count} rows`);
+
+    debugLog('API /fetch-from-sheet', 'Processing completed', result);
+
+    const totalTime = timer.end();
+
+    return c.json({
+      success: result.success,
+      result: {
+        ...result,
+        source: 'sheet', // データソース識別用
+      },
+      performance: {
+        totalTime,
+      },
+    });
+  } catch (error: any) {
+    const detailedError = createDetailedError(
+      'API /fetch-from-sheet',
+      error,
+      {
+        stack: error.stack,
+      }
+    );
+    errorLog('API /fetch-from-sheet', 'Unexpected error', detailedError);
 
     return c.json(
       {

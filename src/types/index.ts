@@ -121,3 +121,30 @@ export interface ApifyFetchResult {
   error?: string;
   debug?: any;
 }
+
+// スプレッドシートから読み込んだCometデータ（A〜I列）
+export interface CometSheetRowData {
+  platform: string; // A列: プラットフォーム
+  comet_date: string; // B列: Comet取得日時
+  video_url: string; // C列: 動画リンク
+  views: number; // D列: 再生数
+  likes: number; // E列: いいね数
+  saves: number; // F列: 保存数
+  comments: number; // G列: コメント数
+  shares: number; // H列: シェア数
+  comet_analysis: string; // I列: Comet分析
+}
+
+// スプレッドシート出力用のデータ（J〜P列を追加）
+export interface EnhancedSheetRowData extends CometSheetRowData, CalculatedMetrics {
+  system_analysis: string; // O列: システムAI分析
+  system_date: string; // P列: システム処理日時
+}
+
+// スプレッドシート読み込みリクエスト
+export interface FetchFromSheetRequest {
+  source_spreadsheet_id: string; // 読み込み元のスプレッドシートID
+  source_sheet_name: string; // 読み込み元のシート名
+  target_spreadsheet_id?: string; // 書き込み先のスプレッドシートID（省略時は同じ）
+  target_sheet_name?: string; // 書き込み先のシート名（省略時は同じ）
+}
