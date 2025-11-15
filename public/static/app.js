@@ -20,6 +20,70 @@ function addLog(message, type = 'info') {
   logsContainer.scrollTop = logsContainer.scrollHeight;
 }
 
+// 詳細エラーログを追加
+function addDetailedErrorLog(error, debugInfo) {
+  const timestamp = new Date().toLocaleTimeString('ja-JP');
+  const logsContainer = document.getElementById('logs');
+  
+  // エラーメッセージ
+  const errorElement = document.createElement('div');
+  errorElement.className = 'log-entry log-error';
+  errorElement.innerHTML = `
+    <div class="font-bold">
+      <span class="log-time">[${timestamp}]</span>
+      <i class="fas fa-exclamation-triangle mr-2"></i>
+      ${error}
+    </div>
+  `;
+  logsContainer.appendChild(errorElement);
+  
+  // 解決策の提案
+  if (debugInfo?.suggestion) {
+    const suggestionElement = document.createElement('div');
+    suggestionElement.className = 'log-entry log-warning';
+    suggestionElement.innerHTML = `
+      <div>
+        <i class="fas fa-lightbulb mr-2"></i>
+        <strong>解決策:</strong> ${debugInfo.suggestion}
+      </div>
+    `;
+    logsContainer.appendChild(suggestionElement);
+  }
+  
+  // デバッグ情報（展開可能）
+  if (debugInfo) {
+    const debugElement = document.createElement('div');
+    debugElement.className = 'log-entry log-info';
+    debugElement.style.cursor = 'pointer';
+    debugElement.innerHTML = `
+      <div>
+        <i class="fas fa-bug mr-2"></i>
+        <strong>デバッグ情報</strong>
+        <i class="fas fa-chevron-down ml-2" id="debug-toggle"></i>
+      </div>
+      <pre id="debug-details" class="hidden mt-2 text-xs overflow-auto max-h-40 bg-gray-100 p-2 rounded">${JSON.stringify(debugInfo, null, 2)}</pre>
+    `;
+    
+    debugElement.addEventListener('click', () => {
+      const details = debugElement.querySelector('#debug-details');
+      const icon = debugElement.querySelector('#debug-toggle');
+      if (details.classList.contains('hidden')) {
+        details.classList.remove('hidden');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+      } else {
+        details.classList.add('hidden');
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+      }
+    });
+    
+    logsContainer.appendChild(debugElement);
+  }
+  
+  logsContainer.scrollTop = logsContainer.scrollHeight;
+}
+
 // ログクリア
 function clearLogs() {
   appState.logs = [];
@@ -96,12 +160,31 @@ async function processData() {
 
     const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || 'サーバーエラーが発生しました');
-    }
-
-    if (!data.success) {
-      throw new Error(data.error || '処理に失敗しました');
+    if (!response.ok || !data.success) {
+      // 詳細なエラー情報を表示
+      const errorMessage = data.error || 'サーバーエラーが発生しました';
+      addDetailedErrorLog(errorMessage, data.debug);
+      
+      // バリデーションエラーがある場合
+      if (data.validation) {
+        if (data.validation.errors && data.validation.errors.length > 0) {
+          data.validation.errors.forEach(err => addLog(`❌ ${err}`, 'error'));
+        }
+        if (data.validation.warnings && data.validation.warnings.length > 0) {
+          data.validation.warnings.forEach(warn => addLog(`⚠️ ${warn}`, 'warning'));
+        }
+      }
+      
+      // パースエラーがある場合
+      if (data.parse_errors && data.parse_errors.length > 0) {
+        addLog(`CSVパースエラー: ${data.parse_errors.length}件`, 'error');
+        data.parse_errors.slice(0, 5).forEach(err => addLog(`  - ${err}`, 'error'));
+        if (data.parse_errors.length > 5) {
+          addLog(`  ... 他${data.parse_errors.length - 5}件`, 'warning');
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
 
     // 結果をログに表示
@@ -125,10 +208,19 @@ async function processData() {
 
     // 使用されたカラムマッピングを表示
     if (data.column_mapping) {
-      addLog(`カラムマッピング: ${JSON.stringify(data.column_mapping, null, 2)}`);
+      addLog(`カラムマッピング: ${JSON.stringify(data.column_mapping, null, 2)}`, 'info');
+    }
+    
+    // パフォーマンス情報を表示
+    if (data.performance) {
+      addLog(`⏱️ 処理時間: ${(data.performance.totalTime / 1000).toFixed(2)}秒`, 'info');
     }
   } catch (error) {
-    addLog(`❌ エラー: ${error.message}`, 'error');
+    // エラーメッセージは既に addDetailedErrorLog で表示されているので、
+    // ここでは追加のコンテキスト情報のみ表示
+    if (!error.message.includes('サーバーエラー')) {
+      addLog(`❌ エラー: ${error.message}`, 'error');
+    }
     console.error('処理エラー:', error);
   } finally {
     setProcessing(false);
@@ -178,7 +270,10 @@ async function downloadCSV() {
 
     addLog(`✅ CSVダウンロード完了: ${filename}`, 'success');
   } catch (error) {
-    addLog(`❌ ダウンロードエラー: ${error.message}`, 'error');
+    addDetailedErrorLog(`ダウンロードエラー: ${error.message}`, {
+      suggestion: 'スプレッドシートにデータが存在するか確認してください。環境変数が正しく設定されているか確認してください。',
+      error: error.message,
+    });
     console.error('ダウンロードエラー:', error);
   } finally {
     downloadButton.disabled = false;

@@ -4,6 +4,14 @@ import { parseCSV } from '../lib/csv-parser';
 import { processVideoData } from '../lib/processor';
 import { AppConfig, Platform } from '../types';
 import { getPlatformSheetName, getPlatformColumnMapping } from '../lib/platform-config';
+import {
+  debugLog,
+  errorLog,
+  createDetailedError,
+  PerformanceTimer,
+  validateSpreadsheetConfig,
+  validateCSVData,
+} from '../lib/debug';
 
 type Bindings = {
   AI?: any; // Cloudflare AI binding (optional)
@@ -21,33 +29,94 @@ api.use('/*', cors());
  * CSVファイルを受け取り、処理してスプレッドシートに保存
  */
 api.post('/process', async (c) => {
+  const timer = new PerformanceTimer('API /process');
+
   try {
+    debugLog('API /process', 'Request received');
     const body = await c.req.parseBody();
 
     // CSVファイルを取得
     const csvFile = body['csv_file'];
     if (!csvFile || typeof csvFile === 'string') {
-      return c.json({ success: false, error: 'CSVファイルが見つかりません' }, 400);
+      const error = createDetailedError(
+        'API /process',
+        new Error('CSVファイルが見つかりません'),
+        { hasFile: !!csvFile, fileType: typeof csvFile }
+      );
+      errorLog('API /process', 'CSV file validation failed', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: error.suggestion,
+          debug: error,
+        },
+        400
+      );
     }
 
     // 設定を取得
     const configStr = body['config'] as string;
     if (!configStr) {
-      return c.json({ success: false, error: '設定が見つかりません' }, 400);
+      const error = createDetailedError(
+        'API /process',
+        new Error('設定が見つかりません'),
+        { hasConfig: !!configStr }
+      );
+      errorLog('API /process', 'Config validation failed', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: error.suggestion,
+          debug: error,
+        },
+        400
+      );
     }
 
     let config: AppConfig;
     try {
       config = JSON.parse(configStr);
+      debugLog('API /process', 'Config parsed successfully', {
+        platform: config.platform,
+      });
     } catch (error) {
-      return c.json({ success: false, error: '設定のパースに失敗しました' }, 400);
+      const detailedError = createDetailedError(
+        'API /process - Config Parse',
+        error,
+        { configStr: configStr.substring(0, 100) }
+      );
+      errorLog('API /process', 'Config parse failed', detailedError);
+      return c.json(
+        {
+          success: false,
+          error: detailedError.message,
+          suggestion: detailedError.suggestion,
+          debug: detailedError,
+        },
+        400
+      );
     }
 
     // プラットフォームの検証
     const platform: Platform = config.platform || 'tiktok'; // デフォルトはTikTok（後方互換性）
+    debugLog('API /process', 'Platform selected', { platform });
+
     if (platform !== 'tiktok' && platform !== 'instagram') {
+      const error = createDetailedError(
+        'API /process - Platform Validation',
+        new Error('無効なプラットフォームが指定されました'),
+        { platform, validPlatforms: ['tiktok', 'instagram'] }
+      );
+      errorLog('API /process', 'Invalid platform', error);
       return c.json(
-        { success: false, error: '無効なプラットフォームが指定されました' },
+        {
+          success: false,
+          error: error.message,
+          suggestion: 'プラットフォームは "tiktok" または "instagram" を指定してください。',
+          debug: error,
+        },
         400
       );
     }
@@ -56,69 +125,190 @@ api.post('/process', async (c) => {
     const spreadsheetId = c.env?.SPREADSHEET_ID || config.sheets?.spreadsheet_id;
     const googleCredentialsStr = c.env?.GOOGLE_CREDENTIALS || config.google_credentials;
 
-    if (!spreadsheetId) {
+    debugLog('API /process', 'Validating spreadsheet config', {
+      hasSpreadsheetId: !!spreadsheetId,
+      hasCredentials: !!googleCredentialsStr,
+      usingEnvVar: !!c.env?.SPREADSHEET_ID,
+    });
+
+    // 設定のバリデーション
+    const validation = validateSpreadsheetConfig(
+      spreadsheetId,
+      googleCredentialsStr
+    );
+
+    if (!validation.valid) {
+      const error = createDetailedError(
+        'API /process - Config Validation',
+        new Error(validation.errors.join(', ')),
+        {
+          errors: validation.errors,
+          warnings: validation.warnings,
+        }
+      );
+      errorLog('API /process', 'Config validation failed', error);
       return c.json(
-        { success: false, error: 'スプレッドシートIDが設定されていません' },
+        {
+          success: false,
+          error: error.message,
+          suggestion: error.suggestion,
+          validation: validation,
+          debug: error,
+        },
         400
       );
     }
 
-    if (!googleCredentialsStr) {
-      return c.json(
-        { success: false, error: 'Google認証情報が設定されていません' },
-        400
-      );
+    // 警告があれば記録
+    if (validation.warnings.length > 0) {
+      debugLog('API /process', 'Config validation warnings', {
+        warnings: validation.warnings,
+      });
     }
 
     let googleCredentials: any;
     try {
-      googleCredentials = JSON.parse(googleCredentialsStr);
+      googleCredentials = JSON.parse(googleCredentialsStr!);
+      debugLog('API /process', 'Google credentials parsed successfully');
     } catch (error) {
+      const detailedError = createDetailedError(
+        'API /process - Credentials Parse',
+        error,
+        {
+          credentialsPreview: googleCredentialsStr?.substring(0, 50),
+        }
+      );
+      errorLog('API /process', 'Credentials parse failed', detailedError);
       return c.json(
-        { success: false, error: 'Google認証情報のパースに失敗しました' },
+        {
+          success: false,
+          error: detailedError.message,
+          suggestion: detailedError.suggestion,
+          debug: detailedError,
+        },
         400
       );
     }
 
     // CSVファイルを読み込み
     const file = csvFile as File;
+    debugLog('API /process', 'Reading CSV file', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+    });
+
     const csvContent = await file.text();
+    debugLog('API /process', 'CSV content loaded', {
+      contentLength: csvContent.length,
+      firstLine: csvContent.split('\n')[0]?.substring(0, 100),
+    });
 
     // プラットフォーム固有のシート名とカラムマッピングを取得
     const sheetName = getPlatformSheetName(platform);
     const defaultMapping = getPlatformColumnMapping(platform);
     const columnMapping = config.column_mapping || defaultMapping;
 
+    debugLog('API /process', 'Sheet configuration', {
+      sheetName,
+      platform,
+      columnMapping,
+    });
+
     // CSVをパース
+    const csvTimer = new PerformanceTimer('CSV Parse');
     const { data: videoData, errors: parseErrors, mapping } = await parseCSV(
       csvContent,
       columnMapping
     );
+    csvTimer.end(`Parsed ${videoData.length} rows`);
+
+    debugLog('API /process', 'CSV parsed', {
+      dataCount: videoData.length,
+      errorCount: parseErrors.length,
+      mapping,
+    });
 
     if (videoData.length === 0) {
+      const error = createDetailedError(
+        'API /process - CSV Parse',
+        new Error('CSVから有効なデータを読み込めませんでした'),
+        {
+          parseErrors,
+          fileInfo: {
+            name: file.name,
+            size: file.size,
+            firstLine: csvContent.split('\n')[0],
+          },
+        }
+      );
+      errorLog('API /process', 'No data parsed from CSV', error);
       return c.json(
         {
           success: false,
-          error: 'CSVから有効なデータを読み込めませんでした',
+          error: error.message,
+          suggestion:
+            'CSVファイルのフォーマットを確認してください。ヘッダー行と少なくとも1行のデータが必要です。',
           parse_errors: parseErrors,
+          debug: error,
         },
         400
       );
     }
 
+    // CSVデータのバリデーション
+    const dataValidation = validateCSVData(videoData);
+    if (!dataValidation.valid) {
+      const error = createDetailedError(
+        'API /process - Data Validation',
+        new Error(dataValidation.errors.join(', ')),
+        {
+          validation: dataValidation,
+          sampleData: videoData.slice(0, 2),
+        }
+      );
+      errorLog('API /process', 'CSV data validation failed', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: error.suggestion,
+          validation: dataValidation,
+          debug: error,
+        },
+        400
+      );
+    }
+
+    if (dataValidation.warnings.length > 0) {
+      debugLog('API /process', 'CSV data validation warnings', {
+        warnings: dataValidation.warnings,
+      });
+    }
+
     // シート設定を作成（環境変数優先）
     const sheetsConfig = {
-      spreadsheet_id: spreadsheetId,
+      spreadsheet_id: spreadsheetId!,
       sheet_name: sheetName,
     };
 
+    debugLog('API /process', 'Starting data processing', {
+      dataCount: videoData.length,
+      platform,
+      sheetName,
+    });
+
     // データを処理してスプレッドシートに保存
+    const processTimer = new PerformanceTimer('Data Processing');
     const result = await processVideoData(
       platform,
       videoData,
       sheetsConfig,
       googleCredentials,
       c.env?.AI // Cloudflare AI binding
+    );
+    processTimer.end(
+      `Processed ${result.new_count}/${result.total_count} items`
     );
 
     // パースエラーも結果に含める
@@ -127,18 +317,33 @@ api.post('/process', async (c) => {
       result.logs.push(`CSVパース時に${parseErrors.length}件のエラーがありました`);
     }
 
+    timer.end('Request completed');
+
     return c.json({
       success: result.success,
       result: result,
       column_mapping: mapping,
       platform: platform,
+      performance: {
+        totalTime: timer.end(),
+      },
     });
   } catch (error: any) {
-    console.error('API処理エラー:', error);
+    const detailedError = createDetailedError(
+      'API /process - Unexpected Error',
+      error,
+      {
+        stack: error?.stack,
+      }
+    );
+    errorLog('API /process', 'Unexpected error', detailedError);
+
     return c.json(
       {
         success: false,
-        error: error.message || '処理中にエラーが発生しました',
+        error: detailedError.message,
+        suggestion: detailedError.suggestion,
+        debug: detailedError,
       },
       500
     );

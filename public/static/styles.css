@@ -495,3 +495,27 @@
     background-color: #eef2ff;
   }
 }
+
+/* デバッグ情報表示スタイル */
+.log-entry pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+}
+
+.log-entry .font-bold {
+  font-weight: 600;
+}
+
+.log-entry i.fa-bug {
+  color: #6366f1;
+}
+
+.log-entry i.fa-lightbulb {
+  color: #f59e0b;
+}
+
+.log-entry i.fa-exclamation-triangle {
+  color: #ef4444;
+}
