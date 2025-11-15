@@ -30,6 +30,14 @@
 - **料金**: 無料
 - **必要な理由**: アプリケーションを公開するため
 
+### 4. Apify API（オプション）
+- **用途**: TikTok/Instagramのデータ自動収集
+- **料金**: 無料枠$5/月（約2,100件）、有料$49/月〜
+- **必要な理由**: ハッシュタグ検索による自動データ収集を行う場合に必要
+- **Actor ID**: 
+  - TikTok: `clockworks/tiktok-scraper`
+  - Instagram: `apify/instagram-scraper`
+
 ---
 
 ## Google Sheets APIの設定
@@ -155,6 +163,26 @@
 
 3. 「Save」をクリック
 
+#### 環境変数3: APIFY_TOKEN（オプション）
+
+**Apify自動収集機能を使う場合のみ設定が必要です。**
+
+1. [Apify Console](https://console.apify.com/account/integrations) にアクセス
+2. 「Personal API tokens」セクションで新しいトークンを作成
+3. トークン名を入力（例: `comet-analyzer`）
+4. 「Generate」をクリックしてトークンをコピー
+5. Cloudflare Dashboardに戻り、「Add variable」をクリック
+6. 以下を入力:
+   - **Variable name**: `APIFY_TOKEN`
+   - **Value**: `apify_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`（コピーしたトークン）
+   - **Environment**: `Production` と `Preview` 両方にチェック
+7. 「Save」をクリック
+
+**注意事項:**
+- Apifyトークンは `apify_api_` で始まる必要があります
+- トークンは決して公開しないでください
+- 無料枠は月$5（約2,100件のデータ収集）です
+
 #### 環境変数設定後の再デプロイ
 
 環境変数を設定したら、再デプロイが必要です：
@@ -184,6 +212,9 @@ touch .dev.vars
 # Google Sheets設定
 SPREADSHEET_ID=1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 GOOGLE_CREDENTIALS={"type":"service_account","project_id":"comet-analyzer-123456","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvQIBA...\n-----END PRIVATE KEY-----\n","client_email":"comet-analyzer-sa@comet-analyzer-123456.iam.gserviceaccount.com"}
+
+# Apify設定（オプション：Apify自動収集を使う場合のみ）
+APIFY_TOKEN=apify_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 **注意:** `.dev.vars`ファイルは`.gitignore`に含まれているため、Gitにコミットされません（安全）。
@@ -205,6 +236,7 @@ pm2 start ecosystem.config.cjs
 Cloudflare Dashboardで環境変数が正しく設定されているか確認:
 - ✅ `SPREADSHEET_ID` が設定されている
 - ✅ `GOOGLE_CREDENTIALS` が設定されている（JSONが1行になっている）
+- ✅ `APIFY_TOKEN` が設定されている（Apify自動収集を使う場合のみ）
 
 ### ステップ2: 本番環境でテスト
 
@@ -302,9 +334,11 @@ Cloudflare Dashboardで環境変数が正しく設定されているか確認:
 - [ ] スプレッドシートをサービスアカウントと共有した（編集者権限）
 - [ ] Cloudflareで`SPREADSHEET_ID`環境変数を設定した
 - [ ] Cloudflareで`GOOGLE_CREDENTIALS`環境変数を設定した（1行JSON）
+- [ ] Cloudflareで`APIFY_TOKEN`環境変数を設定した（Apify自動収集を使う場合）
 - [ ] 再デプロイした
 - [ ] 本番環境でテストした
 - [ ] スプレッドシートにデータが追加された
+- [ ] Apify自動収集をテストした（オプション）
 
 ---
 
@@ -317,3 +351,22 @@ Cloudflare Dashboardで環境変数が正しく設定されているか確認:
 3. **環境変数** が正しく設定されているか再確認
 
 それでも解決しない場合は、エラーメッセージとデバッグ情報をコピーして質問してください。
+
+### エラー6: 「Apify APIトークンが設定されていません」
+
+**原因:** 環境変数`APIFY_TOKEN`が設定されていない（Apify自動収集を使う場合）
+
+**解決策:**
+1. [Apify Console](https://console.apify.com/account/integrations) でAPIトークンを取得
+2. Cloudflare Dashboard → Settings → Environment variables
+3. `APIFY_TOKEN`を追加（`apify_api_`で始まる）
+4. 再デプロイ
+
+### エラー7: 「Actor execution timed out」
+
+**原因:** Apifyの処理が5分以上かかっている
+
+**解決策:**
+1. 取得件数を減らす（200件 → 50件など）
+2. ハッシュタグの数を減らす（10個 → 3個など）
+3. 時間をおいて再実行する
