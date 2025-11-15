@@ -291,6 +291,112 @@ function updateFileDisplay() {
   }
 }
 
+// スプレッドシートから読み込み
+async function fetchFromSheet() {
+  if (appState.processing) {
+    addLog('すでに処理中です', 'warning');
+    return;
+  }
+
+  const sheetButton = document.getElementById('sheet_fetch_button');
+  const originalHtml = sheetButton.innerHTML;
+  
+  try {
+    setProcessing(true);
+    sheetButton.disabled = true;
+    sheetButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>スプレッドシート読み込み中...';
+
+    // パラメータを取得
+    const spreadsheetId = document.getElementById('sheet_spreadsheet_id').value.trim();
+    const sheetName = document.getElementById('sheet_name').value.trim() || '動画データ';
+
+    // バリデーション
+    if (!spreadsheetId) {
+      addLog('❌ スプレッドシートIDを入力してください', 'error');
+      return;
+    }
+
+    addLog('📊 スプレッドシートからデータを読み込み中...', 'info');
+    addLog(`📍 スプレッドシートID: ${spreadsheetId}`, 'info');
+    addLog(`📍 シート名: ${sheetName}`, 'info');
+
+    // APIリクエスト
+    const response = await fetch('/api/fetch-from-sheet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source_spreadsheet_id: spreadsheetId,
+        source_sheet_name: sheetName,
+        target_spreadsheet_id: spreadsheetId, // 同じシートに書き込み
+        target_sheet_name: sheetName,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      addLog('❌ スプレッドシート読み込みエラー', 'error');
+      if (data.error) {
+        addDetailedErrorLog(data.error, data.debug);
+      }
+      
+      // バリデーションエラーの詳細表示
+      if (data.validation && data.validation.errors.length > 0) {
+        data.validation.errors.forEach(err => addLog(`  • ${err}`, 'error'));
+      }
+      if (data.validation && data.validation.warnings.length > 0) {
+        data.validation.warnings.forEach(warn => addLog(`  ⚠️ ${warn}`, 'warning'));
+      }
+      
+      return;
+    }
+
+    // 成功時の結果表示
+    const result = data.result;
+    addLog('✅ スプレッドシート処理が完了しました！', 'success');
+    addLog(`📊 データソース: スプレッドシート`, 'info');
+    addLog(`🎯 総データ数: ${result.total_count}件`, 'info');
+    addLog(`✨ 新規処理: ${result.new_count}件`, 'success');
+    addLog(`⏭️ スキップ: ${result.skipped_count}件（既に処理済み）`, 'warning');
+    if (result.error_count > 0) {
+      addLog(`❌ エラー: ${result.error_count}件`, 'error');
+    }
+
+    if (data.performance) {
+      addLog(`⚡ 処理時間: ${(data.performance.totalTime / 1000).toFixed(1)}秒`, 'info');
+    }
+
+    // 統計カードを更新
+    document.getElementById('stats_card').classList.remove('hidden');
+    document.getElementById('total_count').textContent = result.total_count;
+    document.getElementById('new_count').textContent = result.new_count;
+    document.getElementById('skipped_count').textContent = result.skipped_count;
+    document.getElementById('error_count').textContent = result.error_count;
+
+    // エラーログの表示
+    if (result.errors && result.errors.length > 0) {
+      addLog('エラー詳細:', 'error');
+      result.errors.forEach((error) => addLog(`  • ${error}`, 'error'));
+    }
+
+    // 処理ログの表示
+    if (result.logs && result.logs.length > 0) {
+      result.logs.forEach((log) => addLog(`  ${log}`, 'info'));
+    }
+
+  } catch (error) {
+    addLog('❌ 予期しないエラーが発生しました', 'error');
+    addDetailedErrorLog(error.message, { error: error.toString() });
+    console.error('Sheet Fetch Error:', error);
+  } finally {
+    setProcessing(false);
+    sheetButton.disabled = false;
+    sheetButton.innerHTML = originalHtml;
+  }
+}
+
 // Apify自動データ収集
 async function fetchFromApify() {
   if (appState.processing) {
@@ -410,6 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('process_button').addEventListener('click', processData);
   document.getElementById('download_button').addEventListener('click', downloadCSV);
   document.getElementById('clear_logs_button').addEventListener('click', clearLogs);
+  document.getElementById('sheet_fetch_button').addEventListener('click', fetchFromSheet);
   document.getElementById('apify_fetch_button').addEventListener('click', fetchFromApify);
   
   // プラットフォーム選択の変更イベント
@@ -423,7 +530,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('csv_file').addEventListener('change', updateFileDisplay);
 
   addLog('アプリケーションが起動しました', 'success');
-  addLog('📝 2つの収集方法が使えます:', 'info');
-  addLog('  1️⃣ Cometの手動CSV → 高精度（おすすめフィード）', 'info');
-  addLog('  2️⃣ Apify自動収集 → 完全自動（ハッシュタグ検索）', 'info');
+  addLog('📝 3つの収集方法が使えます:', 'info');
+  addLog('  1️⃣ CSV手動アップロード → シンプル', 'info');
+  addLog('  2️⃣ スプレッドシート読み込み → Cometデータに指標追加', 'info');
+  addLog('  3️⃣ Apify自動収集 → 完全自動（ハッシュタグ検索）', 'info');
 });

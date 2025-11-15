@@ -106,6 +106,90 @@ app.get('/', (c) => {
                     </button>
                 </div>
 
+                <!-- スプレッドシート読み込みカード -->
+                <div class="card">
+                    <div class="card-title">
+                        <span><i class="fas fa-table mr-2"></i>スプレッドシートから読み込み</span>
+                    </div>
+
+                    <div class="bg-gradient-to-r from-green-50 to-teal-50 border-l-4 border-green-500 p-4 mb-4">
+                        <div class="flex">
+                            <i class="fas fa-file-excel text-green-500 text-2xl mt-1 mr-3"></i>
+                            <div class="text-sm text-green-800">
+                                <p class="font-bold mb-1">📊 Cometが入力したスプレッドシートを読み込み</p>
+                                <p class="mb-2">Cometが生データ+分析を入力したスプレッドシートを読み込み、指標計算とシステムAI分析を追加します。</p>
+                                <ul class="list-disc list-inside space-y-1 text-xs">
+                                    <li>Cometの分析を保持（I列）</li>
+                                    <li>システムAI分析を追加（O列）</li>
+                                    <li>指標自動計算（J〜N列）</li>
+                                    <li>同じシートに結果を追記</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- スプレッドシートID入力 -->
+                    <div class="form-group">
+                        <label for="sheet_spreadsheet_id" class="form-label">
+                            <i class="fas fa-link mr-2"></i>
+                            スプレッドシートID
+                        </label>
+                        <input 
+                            type="text" 
+                            id="sheet_spreadsheet_id" 
+                            class="form-input" 
+                            placeholder="例: 1ABC...xyz"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">
+                            URLの「/d/」と「/edit」の間の文字列です<br>
+                            例: https://docs.google.com/spreadsheets/d/<strong>1ABC...xyz</strong>/edit
+                        </p>
+                    </div>
+
+                    <!-- シート名入力 -->
+                    <div class="form-group">
+                        <label for="sheet_name" class="form-label">
+                            <i class="fas fa-file-alt mr-2"></i>
+                            シート名
+                        </label>
+                        <input 
+                            type="text" 
+                            id="sheet_name" 
+                            class="form-input" 
+                            placeholder="動画データ"
+                            value="動画データ"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">
+                            Cometがデータを入力したシート名（デフォルト: 動画データ）
+                        </p>
+                    </div>
+
+                    <!-- 列構成の説明 -->
+                    <div class="bg-gray-50 border border-gray-200 rounded p-3 mb-4">
+                        <p class="text-xs font-semibold text-gray-700 mb-2">📋 必要な列構成（A〜I列）</p>
+                        <div class="grid grid-cols-2 gap-1 text-xs text-gray-600">
+                            <div>A: プラットフォーム</div>
+                            <div>B: 取得日時</div>
+                            <div>C: 動画リンク</div>
+                            <div>D: 再生数</div>
+                            <div>E: いいね数</div>
+                            <div>F: 保存数</div>
+                            <div>G: コメント数</div>
+                            <div>H: シェア数</div>
+                            <div class="col-span-2">I: Comet分析</div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">
+                            ⚠️ このシステムがJ〜P列に指標とAI分析を追加します
+                        </p>
+                    </div>
+
+                    <!-- 読み込みボタン -->
+                    <button id="sheet_fetch_button" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <i class="fas fa-table mr-2"></i>
+                        スプレッドシートから読み込み＆処理
+                    </button>
+                </div>
+
                 <!-- Apify自動収集カード -->
                 <div class="card">
                     <div class="card-title">
