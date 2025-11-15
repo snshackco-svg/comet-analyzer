@@ -66,6 +66,21 @@ app.get('/', (c) => {
 
                 <!-- メインカード -->
                 <div class="card">
+                    <!-- プラットフォーム選択 -->
+                    <div class="form-group">
+                        <label for="platform" class="form-label">
+                            <i class="fas fa-layer-group mr-2"></i>
+                            対象プラットフォーム
+                        </label>
+                        <select id="platform" class="form-input">
+                            <option value="tiktok">TikTok</option>
+                            <option value="instagram">Instagram</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">
+                            選択したプラットフォームに応じて、異なるシートに保存されます
+                        </p>
+                    </div>
+
                     <!-- ファイルアップロード -->
                     <div class="form-group">
                         <label class="form-label">
@@ -131,16 +146,18 @@ app.get('/', (c) => {
                             </p>
                         </div>
 
-                        <div class="form-group">
-                            <label for="sheet_name" class="form-label">
-                                シート名
-                            </label>
-                            <input
-                                type="text"
-                                id="sheet_name"
-                                class="form-input"
-                                value="TikTok動画データ"
-                            />
+                        <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
+                            <div class="flex">
+                                <i class="fas fa-info-circle text-green-500 mt-1 mr-3"></i>
+                                <div class="text-sm text-green-700">
+                                    <p class="font-semibold mb-1">シート名について</p>
+                                    <p>選択したプラットフォームに応じて、自動的に適切なシートに保存されます：</p>
+                                    <ul class="list-disc list-inside space-y-1 mt-2">
+                                        <li><strong>TikTok</strong>: 「TikTok動画データ」シートに保存</li>
+                                        <li><strong>Instagram</strong>: 「Instagram動画データ」シートに保存</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-group">

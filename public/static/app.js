@@ -1,9 +1,9 @@
 // アプリケーション状態管理
 const appState = {
   processing: false,
+  platform: 'tiktok', // デフォルトはTikTok
   config: {
     spreadsheet_id: '',
-    sheet_name: 'TikTok動画データ',
     google_credentials: '',
   },
   logs: [],
@@ -31,8 +31,13 @@ function saveConfig() {
 // UI更新
 function updateConfigUI() {
   document.getElementById('spreadsheet_id').value = appState.config.spreadsheet_id;
-  document.getElementById('sheet_name').value = appState.config.sheet_name;
   document.getElementById('google_credentials').value = appState.config.google_credentials;
+  
+  // プラットフォーム選択を復元
+  const platformSelect = document.getElementById('platform');
+  if (platformSelect && appState.platform) {
+    platformSelect.value = appState.platform;
+  }
 }
 
 // ログ追加
@@ -110,8 +115,8 @@ async function processData() {
   }
 
   // 設定を保存
+  appState.platform = document.getElementById('platform').value;
   appState.config.spreadsheet_id = document.getElementById('spreadsheet_id').value.trim();
-  appState.config.sheet_name = document.getElementById('sheet_name').value.trim();
   appState.config.google_credentials = document.getElementById('google_credentials').value.trim();
   saveConfig();
 
@@ -125,7 +130,9 @@ async function processData() {
 
   setProcessing(true);
   clearLogs();
-  addLog('処理を開始します...');
+  
+  const platformName = appState.platform === 'tiktok' ? 'TikTok' : 'Instagram';
+  addLog(`【${platformName}】処理を開始します...`);
   addLog(`ファイル: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
 
   try {
@@ -133,12 +140,13 @@ async function processData() {
     const formData = new FormData();
     formData.append('csv_file', file);
     formData.append('config', JSON.stringify({
+      platform: appState.platform,
       sheets: {
         spreadsheet_id: appState.config.spreadsheet_id,
-        sheet_name: appState.config.sheet_name,
+        sheet_name: '', // シート名はプラットフォームに応じてバックエンドで自動設定
       },
       google_credentials: appState.config.google_credentials,
-      column_mapping: {}, // デフォルトマッピングを使用
+      column_mapping: null, // デフォルトマッピングを使用
     }));
 
     // APIにリクエスト
@@ -213,6 +221,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('process_button').addEventListener('click', processData);
   document.getElementById('config_toggle').addEventListener('click', toggleConfig);
   document.getElementById('clear_logs_button').addEventListener('click', clearLogs);
+  
+  // プラットフォーム選択の変更イベント
+  document.getElementById('platform').addEventListener('change', (e) => {
+    appState.platform = e.target.value;
+    saveConfig();
+    const platformName = e.target.value === 'tiktok' ? 'TikTok' : 'Instagram';
+    addLog(`プラットフォームを ${platformName} に切り替えました`, 'info');
+  });
 
   addLog('アプリケーションが起動しました', 'success');
 });

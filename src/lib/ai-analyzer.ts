@@ -1,11 +1,19 @@
-import { TikTokVideoData, CalculatedMetrics } from '../types';
+import { VideoData, CalculatedMetrics, Platform } from '../types';
 import { formatRate } from './metrics';
+import { getPlatformDisplayName } from './platform-config';
 
 /**
- * 動画データからAI分析用のプロンプトを生成
+ * プラットフォームに応じた分析用のプロンプトを生成
  */
-function generateAnalysisPrompt(data: TikTokVideoData, metrics: CalculatedMetrics): string {
-  return `あなたはTikTokの伸びる動画を分析するプロ編集者です。
+function generateAnalysisPrompt(
+  platform: Platform,
+  data: VideoData,
+  metrics: CalculatedMetrics
+): string {
+  const platformName = getPlatformDisplayName(platform);
+  const contentType = platform === 'tiktok' ? '動画' : 'リール';
+
+  return `あなたは${platformName}${contentType}の伸びる動画を分析するプロ編集者です。
 以下の動画データから、「なぜこの動画がこの数値になったのか」「今後同じジャンルで再現するには何を意識すればいいか」を簡潔に分析してください。
 
 【動画データ】
@@ -30,18 +38,21 @@ function generateAnalysisPrompt(data: TikTokVideoData, metrics: CalculatedMetric
  * 他の選択肢: @cf/meta/llama-3.3-70b-instruct, @cf/qwen/qwen2.5-14b-instruct
  */
 export async function generateAnalysis(
-  data: TikTokVideoData,
+  platform: Platform,
+  data: VideoData,
   metrics: CalculatedMetrics,
   ai: any // Cloudflare AI binding
 ): Promise<string> {
   try {
-    const prompt = generateAnalysisPrompt(data, metrics);
+    const prompt = generateAnalysisPrompt(platform, data, metrics);
+    const platformName = getPlatformDisplayName(platform);
+    const contentType = platform === 'tiktok' ? '動画' : 'リール';
 
     const response = await ai.run('@cf/meta/llama-3.1-8b-instruct', {
       messages: [
         {
           role: 'system',
-          content: 'あなたはTikTokの伸びる動画を分析するプロ編集者です。データに基づいて簡潔で具体的な分析を提供します。',
+          content: `あなたは${platformName}${contentType}の伸びる動画を分析するプロ編集者です。データに基づいて簡潔で具体的な分析を提供します。`,
         },
         {
           role: 'user',
@@ -71,11 +82,13 @@ export async function generateAnalysis(
  * フォールバック：AIが使えない場合のシンプルな分析生成
  */
 export function generateSimpleAnalysis(
-  data: TikTokVideoData,
+  platform: Platform,
+  data: VideoData,
   metrics: CalculatedMetrics
 ): string {
   const { views, likes, saves, comments, shares } = data;
   const { like_rate, save_rate, engagement_rate } = metrics;
+  const platformName = getPlatformDisplayName(platform);
 
   // エンゲージメントレベルを判定
   let engagementLevel = '低い';
@@ -89,5 +102,5 @@ export function generateSimpleAnalysis(
   else if (like_rate > 0.08) strongPoint = 'いいね率が高く、視聴者の共感を得ています。';
   else if (comments > views * 0.01) strongPoint = 'コメント数が多く、視聴者の関心を引いています。';
 
-  return `エンゲージメント率${formatRate(engagement_rate)}（${engagementLevel}）。再生数${views.toLocaleString('ja-JP')}に対し、いいね${likes.toLocaleString('ja-JP')}、保存${saves.toLocaleString('ja-JP')}。${strongPoint} 今後は冒頭3秒でフックを強化し、視聴維持率を向上させることで、さらなる拡散が期待できます。`;
+  return `【${platformName}】エンゲージメント率${formatRate(engagement_rate)}（${engagementLevel}）。再生数${views.toLocaleString('ja-JP')}に対し、いいね${likes.toLocaleString('ja-JP')}、保存${saves.toLocaleString('ja-JP')}。${strongPoint} 今後は冒頭3秒でフックを強化し、視聴維持率を向上させることで、さらなる拡散が期待できます。`;
 }

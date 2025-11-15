@@ -1,9 +1,9 @@
-import { TikTokVideoData, CalculatedMetrics } from '../types';
+import { VideoData, CalculatedMetrics } from '../types';
 
 /**
  * 動画データから各種指標を計算
  */
-export function calculateMetrics(data: TikTokVideoData): CalculatedMetrics {
+export function calculateMetrics(data: VideoData): CalculatedMetrics {
   const { views, likes, saves, comments, shares } = data;
 
   // 分母が0または無効な値の場合は0を返す

@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { TikTokVideoData, ColumnMapping } from '../types';
+import { VideoData, ColumnMapping } from '../types';
 
 /**
  * デフォルトのカラムマッピング設定
@@ -108,12 +108,12 @@ function parseNumber(value: any): number {
 }
 
 /**
- * CSVファイルをパースしてTikTokVideoDataの配列に変換
+ * CSVファイルをパースしてVideoDataの配列に変換
  */
 export async function parseCSV(
   fileContent: string,
   customMapping?: Partial<ColumnMapping>
-): Promise<{ data: TikTokVideoData[]; errors: string[]; mapping: ColumnMapping }> {
+): Promise<{ data: VideoData[]; errors: string[]; mapping: ColumnMapping }> {
   const errors: string[] = [];
 
   return new Promise((resolve) => {
@@ -129,7 +129,7 @@ export async function parseCSV(
           mapping = { ...mapping, ...customMapping };
         }
 
-        const videoData: TikTokVideoData[] = [];
+        const videoData: VideoData[] = [];
 
         results.data.forEach((row: any, index: number) => {
           try {
@@ -141,7 +141,7 @@ export async function parseCSV(
             }
 
             // データを抽出
-            const data: TikTokVideoData = {
+            const data: VideoData = {
               video_url: videoUrl.trim(),
               views: parseNumber(row[mapping.views]),
               likes: parseNumber(row[mapping.likes]),
