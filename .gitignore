@@ -33,3 +33,4 @@ logs/
 # IDE
 .vscode/
 .idea/
+core
