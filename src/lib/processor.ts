@@ -1,6 +1,6 @@
 import { VideoData, SheetRowData, ProcessResult, SheetsConfig, Platform } from '../types';
 import { calculateMetrics } from './metrics';
-import { generateAnalysis, generateSimpleAnalysis } from './ai-analyzer';
+import { generateAnalysis } from './ai-analyzer';
 import {
   ensureSheetExists,
   getExistingVideoUrls,
@@ -77,15 +77,9 @@ export async function processVideoData(
         // 指標計算
         const metrics = calculateMetrics(data);
 
-        // AI分析生成（利用可能な場合）
-        let analysis: string;
-        if (ai) {
-          result.logs.push(`【${platformName}】AI分析生成中 (${i + 1}/${newVideoData.length})...`);
-          analysis = await generateAnalysis(platform, data, metrics, ai);
-        } else {
-          result.logs.push(`【${platformName}】簡易分析生成中 (${i + 1}/${newVideoData.length})...`);
-          analysis = generateSimpleAnalysis(platform, data, metrics);
-        }
+        // AI分析生成（必須）
+        result.logs.push(`【${platformName}】AI分析生成中 (${i + 1}/${newVideoData.length})...`);
+        const analysis = await generateAnalysis(platform, data, metrics, ai);
 
         // シート行データを作成
         const rowData: SheetRowData = {

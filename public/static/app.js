@@ -213,6 +213,16 @@ function toggleConfig() {
   }
 }
 
+// ファイル選択時の表示更新
+function updateFileDisplay() {
+  const fileInput = document.getElementById('csv_file');
+  const file = fileInput.files[0];
+  
+  if (file) {
+    addLog(`ファイルを選択: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, 'success');
+  }
+}
+
 // 初期化
 document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
@@ -229,6 +239,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const platformName = e.target.value === 'tiktok' ? 'TikTok' : 'Instagram';
     addLog(`プラットフォームを ${platformName} に切り替えました`, 'info');
   });
+
+  // ファイル選択イベント
+  document.getElementById('csv_file').addEventListener('change', updateFileDisplay);
 
   addLog('アプリケーションが起動しました', 'success');
 });
