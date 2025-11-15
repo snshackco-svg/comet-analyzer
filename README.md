@@ -75,10 +75,10 @@
 ## 🚀 現在のURL
 
 ### 本番環境（Apify自動収集対応 🆕）
-- **Production URL**: https://e12de419.comet-analyzer.pages.dev
+- **Production URL**: https://c93a940b.comet-analyzer.pages.dev
 - **プロジェクト**: comet-analyzer
 - **プラットフォーム**: Cloudflare Pages
-- **最終デプロイ**: 2025-11-15 (Apify統合版)
+- **最終デプロイ**: 2025-01-23 (Apify完全版 - バグ修正 & 検証強化)
 
 ### 開発環境
 - **Sandbox URL**: https://3000-ik4b2rxylqqe2sbqg2wuz-82b888ba.sandbox.novita.ai
