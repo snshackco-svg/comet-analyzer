@@ -425,6 +425,18 @@ async function fetchFromApify() {
 
     if (hashtags.length === 0) {
       addLog('❌ ハッシュタグを入力してください', 'error');
+      addLog('例: fyp, viral, trending', 'info');
+      return;
+    }
+
+    if (hashtags.length > 10) {
+      addLog('❌ ハッシュタグは最大10個までです', 'error');
+      addLog(`現在: ${hashtags.length}個`, 'warning');
+      return;
+    }
+
+    if (resultsPerPage < 1 || resultsPerPage > 200) {
+      addLog('❌ 取得件数は1〜200件の範囲で指定してください', 'error');
       return;
     }
 

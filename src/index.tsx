@@ -227,7 +227,7 @@ app.get('/', (c) => {
                             value="fyp, viral, trending"
                         />
                         <p class="text-xs text-gray-500 mt-1">
-                            複数のハッシュタグをカンマで区切って入力してください（#記号は不要）
+                            複数のハッシュタグをカンマで区切って入力してください（#記号は不要、最大10個）
                         </p>
                     </div>
 
@@ -244,8 +244,24 @@ app.get('/', (c) => {
                             <option value="200">200件</option>
                         </select>
                         <p class="text-xs text-gray-500 mt-1">
-                            💰 料金目安: 50件 = 約$0.50、100件 = 約$1.00
+                            💰 料金目安: 50件 = 約$0.50、100件 = 約$1.00（処理時間: 通常1〜3分）
                         </p>
+                    </div>
+
+                    <!-- 注意事項 -->
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4">
+                        <div class="flex">
+                            <i class="fas fa-exclamation-triangle text-yellow-500 mt-1 mr-2"></i>
+                            <div class="text-xs text-yellow-800">
+                                <p class="font-semibold mb-1">⚠️ 注意事項</p>
+                                <ul class="list-disc list-inside space-y-1">
+                                    <li>Apify APIトークンが環境変数に設定されている必要があります</li>
+                                    <li>ハッシュタグは最大10個まで指定可能</li>
+                                    <li>取得件数は1〜200件の範囲で指定できます</li>
+                                    <li>処理には通常1〜3分かかります（最大5分）</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Apify実行ボタン -->

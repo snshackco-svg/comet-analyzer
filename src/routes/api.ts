@@ -481,7 +481,45 @@ api.post('/fetch-apify', async (c) => {
         {
           success: false,
           error: error.message,
-          suggestion: '少なくとも1つのハッシュタグを指定してください。',
+          suggestion: '少なくとも1つのハッシュタグを指定してください。例: fyp, viral, trending',
+          debug: error,
+        },
+        400
+      );
+    }
+
+    // ハッシュタグの数を制限（コスト管理）
+    if (hashtags.length > 10) {
+      const error = createDetailedError(
+        'API /fetch-apify',
+        new Error(`ハッシュタグが多すぎます（${hashtags.length}件）`),
+        { hashtags, limit: 10 }
+      );
+      errorLog('API /fetch-apify', 'Too many hashtags', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: 'ハッシュタグは最大10個までにしてください。',
+          debug: error,
+        },
+        400
+      );
+    }
+
+    // 取得件数のバリデーション
+    if (resultsPerPage < 1 || resultsPerPage > 200) {
+      const error = createDetailedError(
+        'API /fetch-apify',
+        new Error(`取得件数が範囲外です（${resultsPerPage}件）`),
+        { resultsPerPage, allowedRange: '1-200' }
+      );
+      errorLog('API /fetch-apify', 'Invalid results count', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion: '取得件数は1〜200件の範囲で指定してください。',
           debug: error,
         },
         400
@@ -502,10 +540,30 @@ api.post('/fetch-apify', async (c) => {
           success: false,
           error: error.message,
           suggestion:
-            'Cloudflareダッシュボードで環境変数 APIFY_TOKEN を設定してください。',
+            'Cloudflareダッシュボードで環境変数 APIFY_TOKEN を設定してください。Apifyのトークンは https://console.apify.com/account/integrations から取得できます。',
           debug: error,
         },
         500
+      );
+    }
+
+    // Apifyトークンの形式検証（基本的なチェック）
+    if (!apifyToken.startsWith('apify_api_')) {
+      const error = createDetailedError(
+        'API /fetch-apify',
+        new Error('Apify APIトークンの形式が無効です'),
+        { tokenPrefix: apifyToken.substring(0, 10) }
+      );
+      errorLog('API /fetch-apify', 'Invalid Apify token format', error);
+      return c.json(
+        {
+          success: false,
+          error: error.message,
+          suggestion:
+            'Apify APIトークンは "apify_api_" で始まる必要があります。Apifyダッシュボードで正しいトークンを確認してください。',
+          debug: error,
+        },
+        400
       );
     }
 

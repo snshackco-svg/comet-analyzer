@@ -67,8 +67,12 @@ async function runApifyActor(
       debugLog(location, `Actor status: ${status} (attempt ${attempts}/${maxAttempts})`);
     }
 
+    if (status === 'RUNNING') {
+      throw new Error(`Actor execution timed out after ${maxAttempts * 5} seconds. Status: ${status}`);
+    }
+
     if (status !== 'SUCCEEDED') {
-      throw new Error(`Actor did not complete successfully. Status: ${status}`);
+      throw new Error(`Actor did not complete successfully. Status: ${status}. Please check your Apify account for details.`);
     }
 
     // 3. 結果を取得
