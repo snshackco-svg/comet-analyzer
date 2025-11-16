@@ -20,6 +20,7 @@ type Bindings = {
   SPREADSHEET_ID?: string; // Google Spreadsheet ID from environment
   GOOGLE_CREDENTIALS?: string; // Google service account credentials from environment
   APIFY_TOKEN?: string; // Apify API token from environment
+  OPENAI_API_KEY?: string; // OpenAI API key for GPT-4o analysis
 };
 
 const api = new Hono<{ Bindings: Bindings }>();
@@ -679,7 +680,8 @@ api.post('/fetch-apify', async (c) => {
         sheet_name: sheetName,
       },
       googleCredentials,
-      c.env?.AI
+      c.env?.AI,
+      c.env?.OPENAI_API_KEY // OpenAI API key for GPT-4o analysis
     );
     processTimer.end(`Processed ${result.total_count} videos`);
 
@@ -844,7 +846,8 @@ api.post('/fetch-from-sheet', async (c) => {
         sheet_name: targetSheetName,
       },
       platform,
-      c.env?.AI
+      c.env?.AI,
+      c.env?.OPENAI_API_KEY // OpenAI API key for GPT-4o analysis
     );
     processTimer.end(`Processed ${result.total_count} rows`);
 

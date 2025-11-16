@@ -48,7 +48,101 @@ function generateAnalysisPrompt(
 }
 
 /**
- * Cloudflare AIを使用して分析コメントを生成
+ * OpenAI GPT-4oを使用して高度な分析を生成
+ */
+export async function generateAnalysisWithGPT4o(
+  platform: Platform,
+  data: VideoData,
+  metrics: CalculatedMetrics,
+  openaiApiKey: string
+): Promise<string> {
+  if (!openaiApiKey) {
+    throw new Error('OpenAI APIキーが設定されていません');
+  }
+
+  const platformName = getPlatformDisplayName(platform);
+  const contentType = platform === 'tiktok' ? '動画' : 'リール';
+
+  // GPT-4o用の改善されたプロンプト
+  const systemPrompt = `あなたは${platformName}のトップクリエイターを指導する経験豊富なSNSマーケティングコンサルタントです。データドリブンな分析と、すぐに実践できる具体的なアドバイスを提供します。`;
+
+  const userPrompt = `以下の${platformName}${contentType}のデータを分析し、実践的で具体的なインサイトを提供してください。
+
+【動画データ】
+再生数: ${data.views.toLocaleString('ja-JP')}
+いいね: ${data.likes.toLocaleString('ja-JP')} (${formatRate(metrics.like_rate)})
+保存: ${data.saves.toLocaleString('ja-JP')} (${formatRate(metrics.save_rate)})
+コメント: ${data.comments.toLocaleString('ja-JP')} (${formatRate(metrics.comment_rate)})
+シェア: ${data.shares.toLocaleString('ja-JP')} (${formatRate(metrics.share_rate)})
+総合エンゲージメント率: ${formatRate(metrics.engagement_rate)}
+
+【分析要件】
+以下の4つのセクションで、合計1200-1500文字で分析してください：
+
+## 1. パフォーマンス評価（300-400文字）
+- 各指標の業界ベンチマークとの比較
+- この再生数帯での標準値との差異
+- 特に優れている指標と改善が必要な指標
+- 具体的な数値での評価（例：「保存率0.84%は平均0.5%の1.7倍」）
+
+## 2. 成功要因の分析（300-400文字）
+- なぜこの数値になったのか（構成、テーマ、訴求力の観点）
+- 視聴者の行動パターンから見える動画の特性
+- アルゴリズムへの最適化度合い
+- コンテンツの強みと独自性
+
+## 3. ターゲット層の推定（200-300文字）
+- どのような視聴者層に刺さっているか
+- 年齢層、興味関心、視聴動機
+- エンゲージメントパターンから見える視聴者の特徴
+
+## 4. 次のアクションプラン（400-500文字）
+- 今すぐ実践すべき3-5つの具体的施策
+- 数値を改善するための優先順位付き推奨事項
+- テストすべき新しい要素
+- 避けるべきポイント
+- 次回投稿のタイミングと内容の提案
+
+【注意事項】
+- 抽象的な表現を避け、具体的な数値や事例を使う
+- すぐに実践できるアクションを重視
+- 業界標準値との比較を必ず含める
+- 「〜かもしれない」ではなく「〜です」と断定的に`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${openaiApiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 2000,
+      temperature: 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API エラー: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json();
+  const analysis = result.choices?.[0]?.message?.content;
+
+  if (!analysis || analysis.trim() === '') {
+    throw new Error('AI分析の生成に失敗しました。レスポンスが空です。');
+  }
+
+  return analysis.trim();
+}
+
+/**
+ * Cloudflare AIを使用して分析コメントを生成（フォールバック用）
  * 
  * NOTE: Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct) を使用
  * 他の選択肢: @cf/meta/llama-3.3-70b-instruct, @cf/qwen/qwen2.5-14b-instruct

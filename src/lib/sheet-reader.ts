@@ -12,7 +12,7 @@ import type {
   ProcessResult,
 } from '../types';
 import { calculateMetrics } from './metrics';
-import { generateAnalysis } from './ai-analyzer';
+import { generateAnalysis, generateAnalysisWithGPT4o } from './ai-analyzer';
 import { getAllSheetData, updateRowsInSheet } from './sheets-manager';
 import { debugLog, errorLog, PerformanceTimer } from './debug';
 
@@ -37,9 +37,9 @@ export async function readCometDataFromSheet(
     // ヘッダー行を除外
     const dataRows = allData.slice(1);
 
-    // Cometデータに変換（A〜I列）
+    // Cometデータに変換（A〜H列のみ）
     const cometData: CometSheetRowData[] = dataRows
-      .filter((row) => row.length >= 9) // 最低9列必要
+      .filter((row) => row.length >= 8) // 最低8列必要（A〜H）
       .map((row) => ({
         platform: String(row[0] || '').trim(),
         comet_date: String(row[1] || '').trim(),
@@ -49,7 +49,6 @@ export async function readCometDataFromSheet(
         saves: parseFloat(String(row[5] || '0')) || 0,
         comments: parseFloat(String(row[6] || '0')) || 0,
         shares: parseFloat(String(row[7] || '0')) || 0,
-        comet_analysis: String(row[8] || '').trim(),
       }))
       .filter((data) => data.video_url !== ''); // URLが空の行は除外
 
@@ -86,8 +85,8 @@ export async function checkProcessedRows(
     const processedUrls = new Set<string>();
 
     dataRows.forEach((row) => {
-      if (row.length >= 10 && row[9] !== undefined && row[9] !== '') {
-        // J列（インデックス9）に値がある = 処理済み
+      if (row.length >= 9 && row[8] !== undefined && row[8] !== '') {
+        // I列（インデックス8・いいね率）に値がある = 処理済み
         const url = String(row[2] || '').trim(); // C列（動画URL）
         if (url) {
           processedUrls.add(url);
@@ -110,7 +109,8 @@ export async function checkProcessedRows(
 export async function enhanceCometData(
   cometData: CometSheetRowData[],
   platform: Platform,
-  ai: any
+  ai: any,
+  openaiApiKey?: string
 ): Promise<EnhancedSheetRowData[]> {
   const location = 'sheet-reader/enhanceCometData';
   debugLog(location, `Enhancing ${cometData.length} rows with AI analysis`);
@@ -129,23 +129,37 @@ export async function enhanceCometData(
         shares: data.shares,
       });
 
-      // AI分析生成（Cometの分析とは別）
+      // AI分析生成（Cometの分析とは別）- GPT-4oを優先使用
       let systemAnalysis = '';
-      if (ai) {
+      if (openaiApiKey || ai) {
         try {
-          systemAnalysis = await generateAnalysis(
-            platform,
-            {
-              video_url: data.video_url,
-              views: data.views,
-              likes: data.likes,
-              saves: data.saves,
-              comments: data.comments,
-              shares: data.shares,
-            },
-            metrics,
-            ai
-          );
+          systemAnalysis = openaiApiKey
+            ? await generateAnalysisWithGPT4o(
+                platform,
+                {
+                  video_url: data.video_url,
+                  views: data.views,
+                  likes: data.likes,
+                  saves: data.saves,
+                  comments: data.comments,
+                  shares: data.shares,
+                },
+                metrics,
+                openaiApiKey
+              )
+            : await generateAnalysis(
+                platform,
+                {
+                  video_url: data.video_url,
+                  views: data.views,
+                  likes: data.likes,
+                  saves: data.saves,
+                  comments: data.comments,
+                  shares: data.shares,
+                },
+                metrics,
+                ai
+              );
         } catch (error: any) {
           errorLog(location, `AI analysis failed for ${data.video_url}`, error);
           systemAnalysis = '[AI分析に失敗しました]';
@@ -154,22 +168,11 @@ export async function enhanceCometData(
         systemAnalysis = '[AI未設定]';
       }
 
-      // システム処理日時
-      const systemDate = new Date()
-        .toLocaleString('ja-JP', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-        .replace(/\//g, '-');
-
       enhancedData.push({
         ...data,
         ...metrics,
         system_analysis: systemAnalysis,
-        system_date: systemDate,
+        memo: '', // O列: メモ欄（空欄）
       });
     } catch (error: any) {
       errorLog(location, `Failed to enhance data for ${data.video_url}`, error);
@@ -182,7 +185,7 @@ export async function enhanceCometData(
 }
 
 /**
- * スプレッドシートを更新（J〜P列を追加）
+ * スプレッドシートを更新（I〜O列を追加）
  */
 export async function updateSheetWithEnhancedData(
   credentials: any,
@@ -212,18 +215,18 @@ export async function updateSheetWithEnhancedData(
     enhancedData.forEach((data) => {
       const rowIndex = urlToRowIndex.get(data.video_url);
       if (rowIndex) {
-        // J〜P列を更新
+        // I〜O列を更新
         updates.push({
-          range: `${config.sheet_name}!J${rowIndex}:P${rowIndex}`,
+          range: `${config.sheet_name}!I${rowIndex}:O${rowIndex}`,
           values: [
             [
-              data.like_rate, // J列
-              data.save_rate, // K列
-              data.comment_rate, // L列
-              data.share_rate, // M列
-              data.engagement_rate, // N列
-              data.system_analysis, // O列
-              data.system_date, // P列
+              data.like_rate, // I列
+              data.save_rate, // J列
+              data.comment_rate, // K列
+              data.share_rate, // L列
+              data.engagement_rate, // M列
+              data.system_analysis, // N列
+              data.memo, // O列
             ],
           ],
         });
@@ -252,7 +255,8 @@ export async function processSheetData(
   sourceConfig: SheetsConfig,
   targetConfig: SheetsConfig,
   platform: Platform,
-  ai: any
+  ai: any,
+  openaiApiKey?: string
 ): Promise<ProcessResult> {
   const location = 'sheet-reader/processSheetData';
   const timer = new PerformanceTimer(location);
@@ -299,7 +303,7 @@ export async function processSheetData(
 
     // 4. AI分析と指標計算
     result.logs.push('AI分析と指標計算を実行中...');
-    const enhancedData = await enhanceCometData(unprocessedData, platform, ai);
+    const enhancedData = await enhanceCometData(unprocessedData, platform, ai, openaiApiKey);
     result.logs.push(`${enhancedData.length}件のデータを処理しました`);
 
     // 5. スプレッドシートを更新

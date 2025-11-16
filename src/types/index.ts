@@ -122,7 +122,7 @@ export interface ApifyFetchResult {
   debug?: any;
 }
 
-// スプレッドシートから読み込んだCometデータ（A〜I列）
+// スプレッドシートから読み込んだCometデータ（A〜H列のみ）
 export interface CometSheetRowData {
   platform: string; // A列: プラットフォーム
   comet_date: string; // B列: Comet取得日時
@@ -132,13 +132,17 @@ export interface CometSheetRowData {
   saves: number; // F列: 保存数
   comments: number; // G列: コメント数
   shares: number; // H列: シェア数
-  comet_analysis: string; // I列: Comet分析
+  // I列以降はシステムが自動生成
 }
 
-// スプレッドシート出力用のデータ（J〜P列を追加）
+// スプレッドシート出力用のデータ（I〜O列を追加）
+// A〜H: Comet入力データ
+// I〜M: システム計算指標（like_rate, save_rate, comment_rate, share_rate, engagement_rate）
+// N: システムAI分析
+// O: メモ（予約）
 export interface EnhancedSheetRowData extends CometSheetRowData, CalculatedMetrics {
-  system_analysis: string; // O列: システムAI分析
-  system_date: string; // P列: システム処理日時
+  system_analysis: string; // N列: システムAI分析
+  memo: string; // O列: メモ/タグ
 }
 
 // スプレッドシート読み込みリクエスト

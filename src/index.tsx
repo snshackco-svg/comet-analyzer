@@ -238,13 +238,13 @@ app.get('/', (c) => {
                             取得件数
                         </label>
                         <select id="apify_results" class="form-input">
-                            <option value="20">20件（テスト用）</option>
-                            <option value="50" selected>50件（推奨）</option>
-                            <option value="100">100件</option>
-                            <option value="200">200件</option>
+                            <option value="10" selected>10件（推奨・高速）</option>
+                            <option value="20">20件（標準）</option>
+                            <option value="30">30件（時間かかる）</option>
                         </select>
                         <p class="text-xs text-gray-500 mt-1">
-                            💰 料金目安: 50件 = 約$0.50、100件 = 約$1.00（処理時間: 通常1〜3分）
+                            💰 料金目安: 10件 = 約$0.10、20件 = 約$0.20<br/>
+                            ⏱️ <strong>推奨:</strong> 10件が最も安定（処理時間: 約30秒）
                         </p>
                     </div>
 

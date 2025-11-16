@@ -27,23 +27,32 @@ async function runApifyActor(
 
   try {
     // 1. Actorを起動
-    const runResponse = await fetch(
-      `${APIFY_API_BASE}/acts/${actorId}/runs?token=${token}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      }
-    );
+    // Authorizationヘッダーを使用（推奨）
+    const url = `${APIFY_API_BASE}/acts/${actorId}/runs`;
+    debugLog(location, `Calling Apify API: POST ${url}`);
+    debugLog(location, `Actor ID: ${actorId}`, { input });
+    
+    const runResponse = await fetch(url, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(input), // 入力を直接送信（ラップしない）
+    });
+
+    debugLog(location, `Response status: ${runResponse.status}`);
 
     if (!runResponse.ok) {
       const errorText = await runResponse.text();
+      errorLog(location, `API Error: ${runResponse.status}`, { url: url.replace(/token=[^&]+/, 'token=***'), response: errorText });
       throw new Error(`Failed to start actor: ${runResponse.status} ${errorText}`);
     }
 
     const runData = await runResponse.json();
     const runId = runData.data.id;
-    debugLog(location, `Actor started with run ID: ${runId}`);
+    const datasetId = runData.data.defaultDatasetId;
+    debugLog(location, `Actor started with run ID: ${runId}, dataset: ${datasetId}`);
 
     // 2. 実行完了を待つ（ポーリング）
     let status = 'RUNNING';
@@ -55,7 +64,10 @@ async function runApifyActor(
       attempts++;
 
       const statusResponse = await fetch(
-        `${APIFY_API_BASE}/acts/${actorId}/runs/${runId}?token=${token}`
+        `${APIFY_API_BASE}/actor-runs/${runId}`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
       );
 
       if (!statusResponse.ok) {
@@ -77,7 +89,10 @@ async function runApifyActor(
 
     // 3. 結果を取得
     const datasetResponse = await fetch(
-      `${APIFY_API_BASE}/acts/${actorId}/runs/${runId}/dataset/items?token=${token}`
+      `${APIFY_API_BASE}/datasets/${datasetId}/items`,
+      {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }
     );
 
     if (!datasetResponse.ok) {
@@ -106,7 +121,8 @@ export async function fetchTikTokFromApify(
   debugLog(location, 'Fetching TikTok data via Apify', { hashtags, resultsPerPage });
 
   try {
-    const actorId = 'clockworks/tiktok-scraper';
+    // owner~actor-name 形式を使用（チルダが必須）
+    const actorId = 'clockworks~tiktok-scraper';
     const input = {
       hashtags: hashtags,
       resultsPerPage: resultsPerPage,
@@ -163,7 +179,8 @@ export async function fetchInstagramFromApify(
   debugLog(location, 'Fetching Instagram data via Apify', { hashtags, resultsPerPage });
 
   try {
-    const actorId = 'apify/instagram-scraper';
+    // Instagram ScraperのActor ID
+    const actorId = 'apify~instagram-scraper'; // TODO: 正確なActor IDを確認
     const input = {
       hashtags: hashtags,
       resultsLimit: resultsPerPage,

@@ -463,8 +463,15 @@ async function fetchFromApify() {
 
     if (!response.ok || !data.success) {
       addLog('❌ Apifyデータ取得エラー', 'error');
+      
+      // 詳細なエラー情報をコンソールに出力
+      console.error('Apify Error Response:', data);
+      
       if (data.error) {
         addDetailedErrorLog(data.error, data.debug);
+      } else {
+        // data.errorが存在しない場合もレスポンス全体を表示
+        addLog(`⚠️ エラー詳細: ${JSON.stringify(data, null, 2)}`, 'error');
       }
       
       // バリデーションエラーの詳細表示

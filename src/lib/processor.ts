@@ -1,6 +1,6 @@
 import { VideoData, SheetRowData, ProcessResult, SheetsConfig, Platform } from '../types';
 import { calculateMetrics } from './metrics';
-import { generateAnalysis } from './ai-analyzer';
+import { generateAnalysis, generateAnalysisWithGPT4o } from './ai-analyzer';
 import {
   ensureSheetExists,
   getExistingVideoUrls,
@@ -16,7 +16,8 @@ export async function processVideoData(
   videoData: VideoData[],
   config: SheetsConfig,
   googleCredentials: any,
-  ai?: any // Cloudflare AI binding (optional)
+  ai?: any, // Cloudflare AI binding (optional)
+  openaiApiKey?: string // OpenAI API key (optional, prioritized over Cloudflare AI)
 ): Promise<ProcessResult> {
   const platformName = getPlatformDisplayName(platform);
 
@@ -70,42 +71,57 @@ export async function processVideoData(
     });
 
     result.logs.push(`【${platformName}】データ分析を開始...`);
-    for (let i = 0; i < newVideoData.length; i++) {
-      const data = newVideoData[i];
-
-      try {
-        // 指標計算
-        const metrics = calculateMetrics(data);
-
-        // AI分析生成（必須）
-        result.logs.push(`【${platformName}】AI分析生成中 (${i + 1}/${newVideoData.length})...`);
-        const analysis = await generateAnalysis(platform, data, metrics, ai);
-
-        // シート行データを作成
-        const rowData: SheetRowData = {
-          platform: platformName,
-          date: dateStr,
-          video_url: data.video_url,
-          views: data.views,
-          likes: data.likes,
-          saves: data.saves,
-          comments: data.comments,
-          shares: data.shares,
-          like_rate: metrics.like_rate,
-          save_rate: metrics.save_rate,
-          comment_rate: metrics.comment_rate,
-          share_rate: metrics.share_rate,
-          engagement_rate: metrics.engagement_rate,
-          analysis: analysis,
-          memo: '',
-        };
-
-        processedRows.push(rowData);
-      } catch (error: any) {
-        result.error_count++;
-        result.errors.push(`【${platformName}】動画 ${data.video_url} の処理エラー: ${error.message}`);
-        result.logs.push(`【${platformName}】⚠️ エラー: ${data.video_url}`);
-      }
+    
+    // バッチ処理（一度に3件ずつ並列処理してサブリクエスト制限を回避）
+    const BATCH_SIZE = 3;
+    for (let batchStart = 0; batchStart < newVideoData.length; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, newVideoData.length);
+      const batch = newVideoData.slice(batchStart, batchEnd);
+      
+      result.logs.push(`【${platformName}】AI分析生成中 (${batchStart + 1}-${batchEnd}/${newVideoData.length})...`);
+      
+      // バッチ内のデータを並列処理
+      const batchResults = await Promise.allSettled(
+        batch.map(async (data) => {
+          const metrics = calculateMetrics(data);
+          // GPT-4oを優先使用（利用可能な場合）、フォールバックでCloudflare AI
+          const analysis = openaiApiKey
+            ? await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey)
+            : await generateAnalysis(platform, data, metrics, ai);
+          
+          const rowData: SheetRowData = {
+            platform: platformName,
+            date: dateStr,
+            video_url: data.video_url,
+            views: data.views,
+            likes: data.likes,
+            saves: data.saves,
+            comments: data.comments,
+            shares: data.shares,
+            like_rate: metrics.like_rate,
+            save_rate: metrics.save_rate,
+            comment_rate: metrics.comment_rate,
+            share_rate: metrics.share_rate,
+            engagement_rate: metrics.engagement_rate,
+            analysis: analysis,
+            memo: '',
+          };
+          
+          return rowData;
+        })
+      );
+      
+      // 結果を処理
+      batchResults.forEach((batchResult, index) => {
+        const data = batch[index];
+        if (batchResult.status === 'fulfilled') {
+          processedRows.push(batchResult.value);
+        } else {
+          result.error_count++;
+          result.errors.push(`【${platformName}】動画 ${data.video_url} の処理エラー: ${batchResult.reason?.message || '不明なエラー'}`);
+          result.logs.push(`【${platformName}】⚠️ エラー: ${data.video_url}`);
+        }
+      });
     }
 
     // スプレッドシートに追加
