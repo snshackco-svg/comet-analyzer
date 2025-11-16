@@ -38,8 +38,9 @@
 ✅ **自動指標計算**
 - いいね率、保存率、コメント率、シェア率、エンゲージメント率を自動計算
 
-✅ **AI分析コメント生成**
-- Cloudflare Workers AIで各動画を自動分析
+✅ **AI分析コメント生成** 🆕 **GPT-4o強化版**
+- **GPT-4o**: 業界基準・成功要因・具体的アクションプランを含む高品質な分析
+- フォールバック: Cloudflare Workers AI（GPT-4o利用不可時）
 - プラットフォームごとに最適化された分析プロンプト
 
 ✅ **重複チェック**
@@ -66,19 +67,20 @@
 | API | 用途 | 料金 | 必須度 |
 |-----|-----|------|--------|
 | **Google Sheets API** | データの保存・読み込み | 無料（1日500リクエスト） | ✅ 必須 |
-| **Cloudflare Workers AI** | AI分析コメント生成 | 無料枠あり（月10,000リクエスト） | ✅ 必須 |
+| **OpenAI API (GPT-4o)** 🆕 | 高品質AI分析コメント生成 | $2.50/1M入力トークン、$10.00/1M出力トークン（1動画≈$0.03-0.05） | ⭕ 推奨 |
+| **Cloudflare Workers AI** | AI分析コメント生成（フォールバック） | 無料枠あり（月10,000リクエスト） | ⭕ オプション |
 | **Cloudflare Pages** | アプリホスティング | 無料 | ✅ 必須 |
-| **Apify API** 🆕 | 自動データ収集（TikTok/Instagram） | 無料枠$5/月（約2,100件）、有料$49/月〜 | ⭕ オプション |
+| **Apify API** | 自動データ収集（TikTok/Instagram） | 無料枠$5/月（約2,100件）、有料$49/月〜 | ⭕ オプション |
 
 **📖 [APIの設定方法はSETUP_GUIDE.mdを参照](./SETUP_GUIDE.md)**
 
 ## 🚀 現在のURL
 
-### 本番環境（Apify自動収集対応 🆕）
-- **Production URL**: https://c93a940b.comet-analyzer.pages.dev
+### 本番環境（GPT-4o統合版 🆕）
+- **Production URL**: https://4847bf81.comet-analyzer.pages.dev
 - **プロジェクト**: comet-analyzer
 - **プラットフォーム**: Cloudflare Pages
-- **最終デプロイ**: 2025-01-23 (Apify完全版 - バグ修正 & 検証強化)
+- **最終デプロイ**: 2025-01-24 (GPT-4o統合 - 高品質AI分析実装)
 
 ### 開発環境
 - **Sandbox URL**: https://3000-ik4b2rxylqqe2sbqg2wuz-82b888ba.sandbox.novita.ai
@@ -102,7 +104,8 @@
 3. **Cloudflareで環境変数を設定**
    - `SPREADSHEET_ID`: スプレッドシートのID
    - `GOOGLE_CREDENTIALS`: サービスアカウントのJSON（1行）
-   - `APIFY_TOKEN`: Apify APIトークン（自動収集を使う場合のみ） 🆕
+   - `OPENAI_API_KEY`: OpenAI APIキー（GPT-4o分析を使う場合） 🆕
+   - `APIFY_TOKEN`: Apify APIトークン（自動収集を使う場合のみ）
 
 4. **再デプロイ**
    ```bash
@@ -136,7 +139,7 @@ TikTokとInstagramのデータを1つのシートに統合管理します。A列
 | K | コメント率 | comments ÷ views |
 | L | シェア率 | shares ÷ views |
 | M | エンゲージメント率 | (likes + saves + comments + shares) ÷ views |
-| N | 分析結果 | AI生成の詳細分析コメント（約1000文字：ターゲット分析、数値評価、成功要因、改善アクション） |
+| N | 分析結果 | **GPT-4o生成**の詳細分析コメント（約1200-1600文字）<br>① パフォーマンス評価（業界基準との比較）<br>② 成功要因分析<br>③ ターゲット層推定<br>④ 具体的なアクションプラン（3-5項目） |
 | O | メモ/タグ | ユーザー用の自由記入欄 |
 
 ## 🛠 使い方
@@ -287,7 +290,9 @@ webapp/
 
 - **バックエンド**: Hono (Cloudflare Workers)
 - **フロントエンド**: Vanilla JS + TailwindCSS (モバイル対応)
-- **AI分析**: Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct)
+- **AI分析**: 
+  - **Primary**: OpenAI GPT-4o（高品質分析）🆕
+  - **Fallback**: Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct)
 - **CSVパーサー**: PapaParse
 - **デプロイ**: Cloudflare Pages (本番稼働中 ✅)
 - **開発ツール**: Vite, Wrangler, PM2
@@ -327,6 +332,46 @@ pm2 stop comet-analyzer
 ### 重複データ
 - 同じ動画URL: 自動的にスキップしてログに記録（各プラットフォームのシート内で）
 
+## 🤖 GPT-4o AI分析の特徴
+
+### 分析品質の向上
+
+従来のCloudflare Workers AIと比較して、**GPT-4o**は以下の点で大幅に改善されています：
+
+#### 📊 分析内容の構成（4セクション）
+
+1. **パフォーマンス評価（300-400文字）**
+   - 業界基準との具体的な比較
+   - 各指標（いいね率、保存率など）の評価
+   - 数値に基づく客観的な分析
+
+2. **成功要因分析（300-400文字）**
+   - なぜこの動画が成功/失敗したのか
+   - コンテンツの特徴と傾向
+   - エンゲージメントの要因
+
+3. **ターゲット層推定（200-300文字）**
+   - 想定される視聴者層
+   - プラットフォーム別の特性
+   - デモグラフィック分析
+
+4. **アクションプラン（400-500文字）**
+   - 具体的な改善施策（3-5項目）
+   - 優先順位付き
+   - 実行可能な次のステップ
+
+### 💰 コスト（参考値）
+
+- **1動画あたり**: 約$0.03-0.05（3-5円）
+- **10動画**: 約$0.30-0.50（30-50円）
+- **100動画**: 約$3.00-5.00（300-500円）
+
+※ GPT-4o価格: $2.50/1M入力トークン、$10.00/1M出力トークン
+
+### 🔄 フォールバック機能
+
+OpenAI APIキーが設定されていない場合、自動的にCloudflare Workers AIにフォールバックします。
+
 ## 🎯 完了している機能
 
 ✅ マルチプラットフォーム対応（TikTok + Instagram）  
@@ -334,7 +379,11 @@ pm2 stop comet-analyzer
 ✅ CSVファイルアップロード・パース機能  
 ✅ 自動カラムマッピング（viewCount → views など）  
 ✅ 指標自動計算（各種率の算出）  
-✅ プラットフォーム別AI分析コメント生成（1000文字）  
+✅ **GPT-4o高品質AI分析** 🆕  
+  - OpenAI GPT-4o による業界基準・成功要因・具体的アクションプランを含む詳細分析
+  - フォールバック: Cloudflare Workers AI（GPT-4o利用不可時）
+  - プラットフォーム別最適化プロンプト
+  - 1200-1600文字の実用的な分析コメント  
 ✅ Google Sheets API連携  
 ✅ 重複チェック機能  
 ✅ CSVダウンロード機能（プラットフォームフィルタ付き）  
@@ -344,7 +393,7 @@ pm2 stop comet-analyzer
   - タッチフレンドリーなボタンサイズ（44px以上）
   - 画面サイズに応じた自動レイアウト調整
   - モバイルブラウザでの快適な操作性  
-✅ **Apify自動データ収集** 🆕  
+✅ **Apify自動データ収集**  
   - ハッシュタグ検索によるトレンド動画の自動取得
   - TikTok/Instagram対応
   - 取得件数のカスタマイズ（20〜200件）
@@ -356,8 +405,9 @@ pm2 stop comet-analyzer
 ⏳ **YouTube Shorts対応**
 - 3つ目のプラットフォームとして追加可能
 
-⏳ **Cloudflare AI統合**
-- Cloudflare Workers AIを使用した高度なAI分析
+✅ **OpenAI GPT-4o統合** 🆕
+- 業界基準との比較、成功要因分析、具体的アクションプラン含む高品質分析
+- Cloudflare Workers AIをフォールバックとして維持
 
 ⏳ **Google Drive連携**
 - Driveフォルダから最新CSVを自動取得
