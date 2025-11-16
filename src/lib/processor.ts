@@ -72,8 +72,9 @@ export async function processVideoData(
 
     result.logs.push(`【${platformName}】データ分析を開始...`);
     
-    // バッチ処理（一度に3件ずつ並列処理してサブリクエスト制限を回避）
-    const BATCH_SIZE = 3;
+    // Vision API使用時はバッチサイズを小さく（1動画=2-3リクエスト）
+    // テキストのみの場合は3件、Vision使用時は2件
+    const BATCH_SIZE = openaiApiKey ? 2 : 3;
     for (let batchStart = 0; batchStart < newVideoData.length; batchStart += BATCH_SIZE) {
       const batchEnd = Math.min(batchStart + BATCH_SIZE, newVideoData.length);
       const batch = newVideoData.slice(batchStart, batchEnd);

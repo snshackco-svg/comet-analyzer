@@ -238,13 +238,14 @@ app.get('/', (c) => {
                             取得件数
                         </label>
                         <select id="apify_results" class="form-input">
-                            <option value="10" selected>10件（推奨・高速）</option>
-                            <option value="20">20件（標準）</option>
-                            <option value="30">30件（時間かかる）</option>
+                            <option value="10" selected>10件（推奨・Vision API対応）</option>
+                            <option value="15">15件（標準）</option>
+                            <option value="20">20件（上限・時間かかる）</option>
                         </select>
                         <p class="text-xs text-gray-500 mt-1">
-                            💰 料金目安: 10件 = 約$0.10、20件 = 約$0.20<br/>
-                            ⏱️ <strong>推奨:</strong> 10件が最も安定（処理時間: 約30秒）
+                            💰 Vision API料金: 10件 ≈ $0.80-1.50、15件 ≈ $1.20-2.25、20件 ≈ $1.60-3.00<br/>
+                            ⏱️ <strong>推奨:</strong> 10件が最も安定（処理時間: 約60-90秒）<br/>
+                            ⚠️ <strong>制限:</strong> 20件がCloudflareの上限（これ以上は不可）
                         </p>
                     </div>
 
