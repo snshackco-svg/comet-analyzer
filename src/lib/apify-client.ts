@@ -134,8 +134,12 @@ export async function fetchTikTokFromApify(
 
     const results: ApifyTikTokResult[] = await runApifyActor(actorId, input, token);
 
+    // 安全のため、結果を20件に制限（Cloudflare無料プランの上限対応）
+    const limitedResults = results.slice(0, 20);
+    debugLog(location, `Limited results from ${results.length} to ${limitedResults.length} (max 20)`);
+
     // Apifyの結果を共通のVideoData形式に変換
-    const videos: VideoData[] = results
+    const videos: VideoData[] = limitedResults
       .filter((item) => item.webVideoUrl && item.playCount !== undefined)
       .map((item) => ({
         video_url: item.webVideoUrl,
@@ -193,9 +197,13 @@ export async function fetchInstagramFromApify(
 
     const results: ApifyInstagramResult[] = await runApifyActor(actorId, input, token);
 
+    // 安全のため、結果を20件に制限（Cloudflare無料プランの上限対応）
+    const limitedResults = results.slice(0, 20);
+    debugLog(location, `Limited results from ${results.length} to ${limitedResults.length} (max 20)`);
+
     // Apifyの結果を共通のVideoData形式に変換
     // Instagram APIには保存数とシェア数が含まれないため、0として扱う
-    const videos: VideoData[] = results
+    const videos: VideoData[] = limitedResults
       .filter((item) => item.url && item.likesCount !== undefined)
       .map((item) => ({
         video_url: item.url,
