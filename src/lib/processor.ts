@@ -1,6 +1,6 @@
 import { VideoData, SheetRowData, ProcessResult, SheetsConfig, Platform } from '../types';
 import { calculateMetrics } from './metrics';
-import { generateAnalysis, generateAnalysisWithGPT4o } from './ai-analyzer';
+import { generateAnalysis, generateAnalysisWithGPT4o, generateAnalysisWithVision } from './ai-analyzer';
 import {
   ensureSheetExists,
   getExistingVideoUrls,
@@ -84,10 +84,18 @@ export async function processVideoData(
       const batchResults = await Promise.allSettled(
         batch.map(async (data) => {
           const metrics = calculateMetrics(data);
-          // GPT-4oを優先使用（利用可能な場合）、フォールバックでCloudflare AI
-          const analysis = openaiApiKey
-            ? await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey)
-            : await generateAnalysis(platform, data, metrics, ai);
+          // AI分析の優先順位: Vision API > GPT-4o (text) > Cloudflare AI
+          let analysis: string;
+          if (openaiApiKey && data.video_url) {
+            // Vision APIで映像+説明文を総合分析（最高品質）
+            analysis = await generateAnalysisWithVision(platform, data, metrics, openaiApiKey);
+          } else if (openaiApiKey) {
+            // GPT-4oでテキストのみ分析（高品質）
+            analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+          } else {
+            // Cloudflare AIでフォールバック（標準品質）
+            analysis = await generateAnalysis(platform, data, metrics, ai);
+          }
           
           const rowData: SheetRowData = {
             platform: platformName,

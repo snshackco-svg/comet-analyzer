@@ -9,6 +9,10 @@ export interface VideoData {
   saves: number;
   comments: number;
   shares: number;
+  // メタデータ（オプション）- Vision APIでの詳細分析に使用
+  caption?: string;         // 動画の説明文・キャプション
+  author_name?: string;     // 投稿者の表示名
+  author_username?: string; // 投稿者のユーザー名/ID
 }
 
 // 後方互換性のため残す

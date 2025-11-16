@@ -12,7 +12,7 @@ import type {
   ProcessResult,
 } from '../types';
 import { calculateMetrics } from './metrics';
-import { generateAnalysis, generateAnalysisWithGPT4o } from './ai-analyzer';
+import { generateAnalysis, generateAnalysisWithGPT4o, generateAnalysisWithVision } from './ai-analyzer';
 import { getAllSheetData, updateRowsInSheet } from './sheets-manager';
 import { debugLog, errorLog, PerformanceTimer } from './debug';
 
@@ -129,37 +129,44 @@ export async function enhanceCometData(
         shares: data.shares,
       });
 
-      // AI分析生成（Cometの分析とは別）- GPT-4oを優先使用
+      // AI分析生成（Cometの分析とは別）- Vision API > GPT-4o > Cloudflare AI
       let systemAnalysis = '';
       if (openaiApiKey || ai) {
         try {
-          systemAnalysis = openaiApiKey
-            ? await generateAnalysisWithGPT4o(
-                platform,
-                {
-                  video_url: data.video_url,
-                  views: data.views,
-                  likes: data.likes,
-                  saves: data.saves,
-                  comments: data.comments,
-                  shares: data.shares,
-                },
-                metrics,
-                openaiApiKey
-              )
-            : await generateAnalysis(
-                platform,
-                {
-                  video_url: data.video_url,
-                  views: data.views,
-                  likes: data.likes,
-                  saves: data.saves,
-                  comments: data.comments,
-                  shares: data.shares,
-                },
-                metrics,
-                ai
-              );
+          const videoData = {
+            video_url: data.video_url,
+            views: data.views,
+            likes: data.likes,
+            saves: data.saves,
+            comments: data.comments,
+            shares: data.shares,
+          };
+
+          if (openaiApiKey && data.video_url) {
+            // Vision APIで映像+説明文を総合分析（最高品質）
+            systemAnalysis = await generateAnalysisWithVision(
+              platform,
+              videoData,
+              metrics,
+              openaiApiKey
+            );
+          } else if (openaiApiKey) {
+            // GPT-4oでテキストのみ分析（高品質）
+            systemAnalysis = await generateAnalysisWithGPT4o(
+              platform,
+              videoData,
+              metrics,
+              openaiApiKey
+            );
+          } else {
+            // Cloudflare AIでフォールバック（標準品質）
+            systemAnalysis = await generateAnalysis(
+              platform,
+              videoData,
+              metrics,
+              ai
+            );
+          }
         } catch (error: any) {
           errorLog(location, `AI analysis failed for ${data.video_url}`, error);
           systemAnalysis = '[AI分析に失敗しました]';

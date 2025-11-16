@@ -142,6 +142,166 @@ export async function generateAnalysisWithGPT4o(
 }
 
 /**
+ * OpenAI GPT-4o Vision APIを使用して動画の映像を含む高度な分析を生成
+ * 説明文 + 映像解析による最も詳細な分析
+ */
+export async function generateAnalysisWithVision(
+  platform: Platform,
+  data: VideoData,
+  metrics: CalculatedMetrics,
+  openaiApiKey: string
+): Promise<string> {
+  if (!openaiApiKey) {
+    throw new Error('OpenAI APIキーが設定されていません');
+  }
+
+  const platformName = getPlatformDisplayName(platform);
+  const contentType = platform === 'tiktok' ? '動画' : 'リール';
+
+  // システムプロンプト
+  const systemPrompt = `あなたは${platformName}のトップクリエイターを指導する経験豊富なSNSマーケティングコンサルタント兼映像ディレクターです。数値分析、テキスト分析、そして映像分析を統合し、すぐに実践できる具体的なアドバイスを提供します。`;
+
+  // 説明文情報（利用可能な場合）
+  const captionInfo = data.caption 
+    ? `\n説明文: "${data.caption}"\n投稿者: ${data.author_name || data.author_username || '不明'}`
+    : '';
+
+  // ユーザープロンプト
+  const userPrompt = `以下の${platformName}${contentType}を、数値・説明文・映像の3つの観点から総合的に分析してください。
+
+【基本データ】
+動画URL: ${data.video_url}
+再生数: ${data.views.toLocaleString('ja-JP')}
+いいね: ${data.likes.toLocaleString('ja-JP')} (${formatRate(metrics.like_rate)})
+保存: ${data.saves.toLocaleString('ja-JP')} (${formatRate(metrics.save_rate)})
+コメント: ${data.comments.toLocaleString('ja-JP')} (${formatRate(metrics.comment_rate)})
+シェア: ${data.shares.toLocaleString('ja-JP')} (${formatRate(metrics.share_rate)})
+総合エンゲージメント率: ${formatRate(metrics.engagement_rate)}${captionInfo}
+
+【分析要件】
+以下の8つのセクションで、合計2000-2500文字で詳細に分析してください：
+
+## 1. パフォーマンス評価（250-300文字）
+- 各指標の業界ベンチマークとの比較
+- この再生数帯での標準値との差異
+- 特に優れている指標と改善が必要な指標
+- 具体的な数値での評価
+
+## 2. 編集・構成の分析（350-400文字）
+【映像から分析】
+- カット割りの頻度とテンポ感（高速/標準/ゆっくり）
+- 画面構成と縦型最適化度
+- テキストオーバーレイの配置・サイズ・読みやすさ
+- 色彩・ビジュアルエフェクトの使用
+- トランジション・ズームなどの演出効果
+
+## 3. ストーリー構成の分析（350-400文字）
+【映像から分析】
+- 導入部（0-3秒）のフックの強度と視覚的インパクト
+- 本編の情報提示順序とテンポ配分
+- 結末のCTA（行動喚起）の有無と効果
+- 視聴維持のための工夫（視覚的変化、情報密度）
+
+## 4. 台本・演出の分析（350-400文字）
+【説明文 + 映像から分析】
+- 説明文のフック戦略（数字・疑問形・感情訴求）
+- 画面内テキストと説明文の整合性
+- ハッシュタグ戦略（トレンド vs ニッチ）
+- 視覚的ストーリーテリング手法
+- 人物の有無・表情・ボディランゲージ
+
+## 5. ターゲット層の推定（250-300文字）
+【数値パターン + 映像スタイルから推測】
+- 想定される視聴者層（年齢・性別・興味関心）
+- エンゲージメントパターンから見える視聴動機
+- ビジュアルスタイルが訴求する層
+
+## 6. 成功要因の統合分析（350-400文字）
+【数値 + 説明文 + 映像の総合評価】
+- なぜこの数値になったのか（編集・構成・訴求力の観点）
+- 視聴者行動パターンから見える動画の特性
+- アルゴリズム最適化度合い
+- 競合との差別化ポイント
+
+## 7. 改善提案（350-400文字）
+【編集・構成・台本の具体的改善策】
+- カット割り・テンポの最適化案
+- テキスト配置・サイズの調整提案
+- 色彩・エフェクトの改善
+- フック強化の具体案
+- 説明文・ハッシュタグの最適化
+
+## 8. 次のアクションプラン（400-500文字）
+【優先順位付きの実行可能施策】
+- 今すぐ実践すべき3-5つの具体的施策
+- 数値を改善するための推奨事項
+- テストすべき新しい編集手法
+- 避けるべきポイント
+- 次回投稿のタイミングと内容の提案
+
+【注意事項】
+- 映像を実際に見て、具体的な要素を指摘する
+- 抽象的な表現を避け、観察した事実を基に分析
+- すぐに実践できるアクションを重視
+- 業界標準値との比較を必ず含める
+- 「〜かもしれない」ではなく「〜です」と断定的に`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: userPrompt
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: data.video_url,
+                  detail: 'high'  // 高解像度で解析
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 3000,  // 長文分析用
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      // Vision APIエラーの場合はテキストのみ分析にフォールバック
+      console.warn(`Vision API failed (${response.status}), falling back to text-only analysis`);
+      return await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+    }
+
+    const result = await response.json();
+    const analysis = result.choices?.[0]?.message?.content;
+
+    if (!analysis || analysis.trim() === '') {
+      throw new Error('AI分析の生成に失敗しました。レスポンスが空です。');
+    }
+
+    return analysis.trim();
+  } catch (error: any) {
+    // エラー時はテキストのみ分析にフォールバック
+    console.warn('Vision API error, falling back to text-only analysis:', error.message);
+    return await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+  }
+}
+
+/**
  * Cloudflare AIを使用して分析コメントを生成（フォールバック用）
  * 
  * NOTE: Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct) を使用

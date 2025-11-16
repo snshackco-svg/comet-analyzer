@@ -144,6 +144,10 @@ export async function fetchTikTokFromApify(
         saves: item.collectCount || 0,
         comments: item.commentCount || 0,
         shares: item.shareCount || 0,
+        // メタデータを追加（Vision API分析用）
+        caption: item.text || '',
+        author_name: item.authorMeta?.nickName || '',
+        author_username: item.authorMeta?.name || '',
       }));
 
     debugLog(location, `Converted ${videos.length} TikTok videos to VideoData format`);
@@ -200,6 +204,10 @@ export async function fetchInstagramFromApify(
         saves: 0, // Instagram Scraperでは保存数が取得できない
         comments: item.commentsCount || 0,
         shares: 0, // Instagram Scraperではシェア数が取得できない
+        // メタデータを追加（Vision API分析用）
+        caption: item.caption || '',
+        author_name: item.ownerFullName || '',
+        author_username: item.ownerUsername || '',
       }));
 
     debugLog(location, `Converted ${videos.length} Instagram posts to VideoData format`);
