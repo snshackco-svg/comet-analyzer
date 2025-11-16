@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import { calculateMetrics } from './metrics';
 import { generateAnalysis, generateAnalysisWithGPT4o, generateAnalysisWithVision } from './ai-analyzer';
+import { determineAnalysisMethod, getAnalysisReason, DEFAULT_HYBRID_CRITERIA } from './hybrid-analyzer';
 import { getAllSheetData, updateRowsInSheet } from './sheets-manager';
 import { debugLog, errorLog, PerformanceTimer } from './debug';
 
@@ -110,8 +111,11 @@ export async function enhanceCometData(
   cometData: CometSheetRowData[],
   platform: Platform,
   ai: any,
-  openaiApiKey?: string
+  openaiApiKey?: string,
+  hybridCriteria?: import('../types').HybridCriteria
 ): Promise<EnhancedSheetRowData[]> {
+  // ハイブリッド基準のデフォルト設定
+  const criteria = hybridCriteria || DEFAULT_HYBRID_CRITERIA;
   const location = 'sheet-reader/enhanceCometData';
   debugLog(location, `Enhancing ${cometData.length} rows with AI analysis`);
 
@@ -129,7 +133,7 @@ export async function enhanceCometData(
         shares: data.shares,
       });
 
-      // AI分析生成（Cometの分析とは別）- Vision API > GPT-4o > Cloudflare AI
+      // AI分析生成（Cometの分析とは別）- ハイブリッド判定を使用
       let systemAnalysis = '';
       if (openaiApiKey || ai) {
         try {
@@ -142,24 +146,29 @@ export async function enhanceCometData(
             shares: data.shares,
           };
 
-          if (openaiApiKey && data.video_url) {
-            // Vision APIで映像+説明文を総合分析（最高品質）
+          // ハイブリッド判定: どの分析方法を使うか決定
+          const method = determineAnalysisMethod(videoData, metrics, criteria, !!openaiApiKey);
+          const reason = getAnalysisReason(videoData, metrics, criteria, method);
+
+          // 判定結果に基づいてAI分析を実行
+          if (method === 'vision') {
+            // Vision API: 映像+説明文の総合分析
             systemAnalysis = await generateAnalysisWithVision(
               platform,
               videoData,
               metrics,
-              openaiApiKey
+              openaiApiKey!
             );
-          } else if (openaiApiKey) {
-            // GPT-4oでテキストのみ分析（高品質）
+          } else if (method === 'text') {
+            // GPT-4o Text: 説明文のみ分析
             systemAnalysis = await generateAnalysisWithGPT4o(
               platform,
               videoData,
               metrics,
-              openaiApiKey
+              openaiApiKey!
             );
           } else {
-            // Cloudflare AIでフォールバック（標準品質）
+            // Cloudflare AI: フォールバック
             systemAnalysis = await generateAnalysis(
               platform,
               videoData,
@@ -167,6 +176,9 @@ export async function enhanceCometData(
               ai
             );
           }
+
+          // デバッグログ（判定理由を記録）
+          console.log(`[Hybrid] ${data.video_url} → ${method} (${reason})`);
         } catch (error: any) {
           errorLog(location, `AI analysis failed for ${data.video_url}`, error);
           systemAnalysis = '[AI分析に失敗しました]';

@@ -1,6 +1,7 @@
-import { VideoData, SheetRowData, ProcessResult, SheetsConfig, Platform } from '../types';
+import { VideoData, SheetRowData, ProcessResult, SheetsConfig, Platform, HybridCriteria } from '../types';
 import { calculateMetrics } from './metrics';
 import { generateAnalysis, generateAnalysisWithGPT4o, generateAnalysisWithVision } from './ai-analyzer';
+import { determineAnalysisMethod, getAnalysisReason, DEFAULT_HYBRID_CRITERIA } from './hybrid-analyzer';
 import {
   ensureSheetExists,
   getExistingVideoUrls,
@@ -17,8 +18,11 @@ export async function processVideoData(
   config: SheetsConfig,
   googleCredentials: any,
   ai?: any, // Cloudflare AI binding (optional)
-  openaiApiKey?: string // OpenAI API key (optional, prioritized over Cloudflare AI)
+  openaiApiKey?: string, // OpenAI API key (optional, prioritized over Cloudflare AI)
+  hybridCriteria?: HybridCriteria // ハイブリッド判定基準（省略時はデフォルト）
 ): Promise<ProcessResult> {
+  // ハイブリッド基準のデフォルト設定
+  const criteria = hybridCriteria || DEFAULT_HYBRID_CRITERIA;
   const platformName = getPlatformDisplayName(platform);
 
   const result: ProcessResult = {
@@ -85,18 +89,26 @@ export async function processVideoData(
       const batchResults = await Promise.allSettled(
         batch.map(async (data) => {
           const metrics = calculateMetrics(data);
-          // AI分析の優先順位: Vision API > GPT-4o (text) > Cloudflare AI
+          
+          // ハイブリッド判定: どの分析方法を使うか決定
+          const method = determineAnalysisMethod(data, metrics, criteria, !!openaiApiKey);
+          const reason = getAnalysisReason(data, metrics, criteria, method);
+          
+          // 判定結果に基づいてAI分析を実行
           let analysis: string;
-          if (openaiApiKey && data.video_url) {
-            // Vision APIで映像+説明文を総合分析（最高品質）
-            analysis = await generateAnalysisWithVision(platform, data, metrics, openaiApiKey);
-          } else if (openaiApiKey) {
-            // GPT-4oでテキストのみ分析（高品質）
-            analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+          if (method === 'vision') {
+            // Vision API: 映像+説明文の総合分析
+            analysis = await generateAnalysisWithVision(platform, data, metrics, openaiApiKey!);
+          } else if (method === 'text') {
+            // GPT-4o Text: 説明文のみ分析
+            analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey!);
           } else {
-            // Cloudflare AIでフォールバック（標準品質）
+            // Cloudflare AI: フォールバック
             analysis = await generateAnalysis(platform, data, metrics, ai);
           }
+          
+          // デバッグログ（判定理由を記録）
+          console.log(`[Hybrid] ${data.video_url} → ${method} (${reason})`);
           
           const rowData: SheetRowData = {
             platform: platformName,

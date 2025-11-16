@@ -156,3 +156,38 @@ export interface FetchFromSheetRequest {
   target_spreadsheet_id?: string; // 書き込み先のスプレッドシートID（省略時は同じ）
   target_sheet_name?: string; // 書き込み先のシート名（省略時は同じ）
 }
+
+// ハイブリッド分析モードの判定基準
+export interface HybridCriteria {
+  mode: 'vision_all' | 'hybrid_strict' | 'hybrid_balanced' | 'hybrid_generous' | 'custom' | 'text_all';
+  
+  // Tier 1: 超重要動画（いずれか1つ満たせばVision API使用）
+  tier1: {
+    views?: number;           // 再生数
+    saveRate?: number;        // 保存率（%単位: 2.0 = 2%）
+    engagementRate?: number;  // エンゲージメント率（%単位）
+    likes?: number;           // いいね数
+    commentRate?: number;     // コメント率（%単位）
+  };
+  
+  // Tier 2: 重要動画（minConditions個以上満たせばVision API使用）
+  tier2: {
+    minConditions: number;    // 最低満たすべき条件数（デフォルト2）
+    views?: number;           // 再生数
+    saveRate?: number;        // 保存率（%単位）
+    likeRate?: number;        // いいね率（%単位）
+    commentRate?: number;     // コメント率（%単位）
+    engagementRate?: number;  // エンゲージメント率（%単位）
+  };
+}
+
+// ハイブリッド分析の統計情報
+export interface HybridStats {
+  total: number;           // 総動画数
+  visionCount: number;     // Vision API使用数
+  textCount: number;       // GPT-4o Text使用数
+  cloudflareCount: number; // Cloudflare AI使用数
+  visionCost: number;      // Vision APIコスト
+  textCost: number;        // GPT-4o Textコスト
+  totalCost: number;       // 合計コスト
+}

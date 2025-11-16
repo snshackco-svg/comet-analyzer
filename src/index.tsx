@@ -231,22 +231,84 @@ app.get('/', (c) => {
                         </p>
                     </div>
 
-                    <!-- 取得件数設定 -->
+                    <!-- 実行モード選択 -->
                     <div class="form-group">
-                        <label for="apify_results" class="form-label">
-                            <i class="fas fa-list-ol mr-2"></i>
-                            取得件数
+                        <label class="form-label">
+                            <i class="fas fa-cog mr-2"></i>
+                            実行モード
                         </label>
-                        <select id="apify_results" class="form-input">
-                            <option value="10" selected>10件（推奨・Vision API対応）</option>
-                            <option value="15">15件（標準）</option>
-                            <option value="20">20件（上限・時間かかる）</option>
-                        </select>
-                        <p class="text-xs text-gray-500 mt-1">
-                            💰 Vision API料金: 10件 ≈ $0.80-1.50、15件 ≈ $1.20-2.25、20件 ≈ $1.60-3.00<br/>
-                            ⏱️ <strong>推奨:</strong> 10件が最も安定（処理時間: 約60-90秒）<br/>
-                            ⚠️ <strong>制限:</strong> 20件がCloudflareの上限（これ以上は不可）
-                        </p>
+                        <div class="flex gap-4 mb-4">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="execution_mode" value="single" checked class="mr-2" />
+                                <span class="text-sm">単発実行</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="execution_mode" value="batch" class="mr-2" />
+                                <span class="text-sm">🔄 連続実行（大量収集）</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 単発実行設定 -->
+                    <div id="single_mode_settings">
+                        <div class="form-group">
+                            <label for="apify_results" class="form-label">
+                                <i class="fas fa-list-ol mr-2"></i>
+                                取得件数
+                            </label>
+                            <select id="apify_results" class="form-input">
+                                <option value="10" selected>10件（推奨・Vision API対応）</option>
+                                <option value="15">15件（標準）</option>
+                                <option value="20">20件（上限）</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">
+                                💰 Vision API料金: 10件 ≈ $0.80-1.50<br/>
+                                ⏱️ 処理時間: 約60-90秒
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 連続実行設定 -->
+                    <div id="batch_mode_settings" style="display: none;">
+                        <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-4">
+                            <div class="flex">
+                                <i class="fas fa-info-circle text-purple-500 mt-1 mr-3"></i>
+                                <div class="text-sm text-purple-700">
+                                    <p class="font-semibold mb-1">🔄 連続実行モード</p>
+                                    <p>複数回に分けて大量のデータを自動収集します。ブラウザを開いたまま待つだけでOK！</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label for="batch_size" class="form-label">
+                                    1回の件数
+                                </label>
+                                <select id="batch_size" class="form-input">
+                                    <option value="10" selected>10件（最も安全）</option>
+                                    <option value="15">15件（標準）</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="batch_count" class="form-label">
+                                    実行回数
+                                </label>
+                                <select id="batch_count" class="form-input">
+                                    <option value="5">5回</option>
+                                    <option value="10">10回</option>
+                                    <option value="15">15回</option>
+                                    <option value="20" selected>20回</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-100 p-4 rounded-lg">
+                            <p class="text-sm font-semibold text-gray-700 mb-2">📊 合計</p>
+                            <p class="text-2xl font-bold text-purple-600" id="total_items">200件</p>
+                            <p class="text-xs text-gray-600 mt-1" id="total_time">予想時間: 約20-30分</p>
+                            <p class="text-xs text-gray-600" id="total_cost">予想コスト: $16-30</p>
+                        </div>
                     </div>
 
                     <!-- 注意事項 -->
