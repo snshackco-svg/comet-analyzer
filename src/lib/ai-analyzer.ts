@@ -128,10 +128,22 @@ export async function generateAnalysisWithGPT4o(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`OpenAI API エラー: ${response.status} - ${errorText}`);
+    console.error('[OpenAI API Error]', {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorText.substring(0, 500)
+    });
+    throw new Error(`OpenAI API エラー: ${response.status} - ${errorText.substring(0, 200)}`);
   }
 
-  const result = await response.json();
+  let result;
+  try {
+    result = await response.json();
+  } catch (parseError) {
+    const text = await response.text();
+    console.error('[OpenAI JSON Parse Error]', { text: text.substring(0, 500) });
+    throw new Error(`OpenAI APIレスポンスのパースに失敗: ${text.substring(0, 100)}`);
+  }
   const analysis = result.choices?.[0]?.message?.content;
 
   if (!analysis || analysis.trim() === '') {
@@ -281,12 +293,27 @@ export async function generateAnalysisWithVision(
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('[Vision API Error]', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText.substring(0, 500),
+        videoUrl: data.video_url
+      });
       // Vision APIエラーの場合はテキストのみ分析にフォールバック
       console.warn(`Vision API failed (${response.status}), falling back to text-only analysis`);
       return await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
     }
 
-    const result = await response.json();
+    let result;
+    try {
+      result = await response.json();
+    } catch (parseError) {
+      const text = await response.text();
+      console.error('[Vision JSON Parse Error]', { text: text.substring(0, 500) });
+      // パースエラーの場合もテキスト分析にフォールバック
+      console.warn('Vision API response parse failed, falling back to text-only analysis');
+      return await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+    }
     const analysis = result.choices?.[0]?.message?.content;
 
     if (!analysis || analysis.trim() === '') {
