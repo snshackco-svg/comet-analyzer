@@ -23,7 +23,8 @@ export async function processVideoData(
   openaiApiKey?: string, // OpenAI API key (optional) - for GPT-4o text analysis
   geminiApiKey?: string, // Gemini API key (optional) - for video analysis
   twelveLabsApiKey?: string, // Twelve Labs API key (optional) - for video analysis
-  hybridCriteria?: HybridCriteria // ハイブリッド判定基準（省略時はデフォルト）
+  hybridCriteria?: HybridCriteria, // ハイブリッド判定基準（省略時はデフォルト）
+  stopOnVideoAnalysisFailure: boolean = true // 動画分析失敗時に処理を停止するか（デフォルト: true）
 ): Promise<ProcessResult> {
   // ハイブリッド基準のデフォルト設定
   const criteria = hybridCriteria || DEFAULT_HYBRID_CRITERIA;
@@ -104,46 +105,16 @@ export async function processVideoData(
           // 判定結果に基づいてAI分析を実行
           let analysis: string;
           if (method === 'vision') {
-            // 動画分析: Twelve Labs > Gemini > GPT-4o Text
+            // 動画分析: Twelve Labs（失敗時は処理停止）
             if (twelveLabsApiKey) {
-              try {
-                analysis = await analyzeWithTwelveLabs(data.video_url, platform, data, metrics, twelveLabsApiKey);
-              } catch (error: any) {
-                console.error('[Hybrid] Twelve Labs video analysis failed, falling back:', error.message);
-                // Twelve Labs失敗時はGemini or GPT-4oにフォールバック
-                if (geminiApiKey) {
-                  try {
-                    analysis = await generateAnalysisWithGeminiVideo(platform, data, metrics, geminiApiKey);
-                  } catch (geminiError: any) {
-                    console.error('[Hybrid] Gemini video analysis also failed, falling back to GPT-4o:', geminiError.message);
-                    if (openaiApiKey) {
-                      analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
-                    } else {
-                      analysis = await generateAnalysis(platform, data, metrics, ai);
-                    }
-                  }
-                } else if (openaiApiKey) {
-                  analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
-                } else {
-                  analysis = await generateAnalysis(platform, data, metrics, ai);
-                }
-              }
+              // Twelve Labs APIで動画分析（失敗時はエラーを投げる）
+              analysis = await analyzeWithTwelveLabs(data.video_url, platform, data, metrics, twelveLabsApiKey);
             } else if (geminiApiKey) {
-              // Gemini Video API: 実際の動画を分析
-              try {
-                analysis = await generateAnalysisWithGeminiVideo(platform, data, metrics, geminiApiKey);
-              } catch (error: any) {
-                console.error('[Hybrid] Gemini video analysis failed, falling back to GPT-4o text:', error.message);
-                if (openaiApiKey) {
-                  analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
-                } else {
-                  analysis = await generateAnalysis(platform, data, metrics, ai);
-                }
-              }
-            } else if (openaiApiKey) {
-              analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+              // Gemini Video API（失敗時はエラーを投げる）
+              analysis = await generateAnalysisWithGeminiVideo(platform, data, metrics, geminiApiKey);
             } else {
-              analysis = await generateAnalysis(platform, data, metrics, ai);
+              // 動画分析APIが設定されていない場合はエラー
+              throw new Error('動画分析APIキー（TWELVE_LABS_API_KEY または GEMINI_API_KEY）が設定されていません');
             }
           } else if (method === 'text' && openaiApiKey) {
             // GPT-4o Text: 説明文のみ分析
@@ -179,16 +150,36 @@ export async function processVideoData(
       );
       
       // 結果を処理
+      let shouldStop = false;
       batchResults.forEach((batchResult, index) => {
         const data = batch[index];
         if (batchResult.status === 'fulfilled') {
           processedRows.push(batchResult.value);
         } else {
           result.error_count++;
-          result.errors.push(`【${platformName}】動画 ${data.video_url} の処理エラー: ${batchResult.reason?.message || '不明なエラー'}`);
-          result.logs.push(`【${platformName}】⚠️ エラー: ${data.video_url}`);
+          const errorMessage = batchResult.reason?.message || '不明なエラー';
+          
+          // 動画分析失敗の場合は特別な警告
+          if (errorMessage.includes('Twelve Labs') || errorMessage.includes('Gemini') || errorMessage.includes('動画分析')) {
+            result.errors.push(`【${platformName}】❌ 動画分析失敗: ${data.video_url}\n理由: ${errorMessage}\n\n⚠️ 動画の映像分析ができませんでした。APIキーと設定を確認してください。`);
+            result.logs.push(`【${platformName}】❌ 動画分析失敗: ${errorMessage}`);
+            
+            // 動画分析失敗時に処理停止フラグが有効なら、処理を中断
+            if (stopOnVideoAnalysisFailure) {
+              shouldStop = true;
+              result.logs.push(`【${platformName}】⚠️ 動画分析が必須のため、処理を中断します`);
+            }
+          } else {
+            result.errors.push(`【${platformName}】動画 ${data.video_url} の処理エラー: ${errorMessage}`);
+            result.logs.push(`【${platformName}】⚠️ エラー: ${data.video_url}`);
+          }
         }
       });
+      
+      // 動画分析失敗で停止フラグが立った場合は処理中断
+      if (shouldStop) {
+        break;
+      }
     }
 
     // スプレッドシートに追加

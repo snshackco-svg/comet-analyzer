@@ -274,6 +274,24 @@ export async function analyzeWithTwelveLabs(
 
   } catch (error: any) {
     console.error('[Twelve Labs] Analysis failed:', error.message);
-    throw new Error(`Twelve Labs分析エラー: ${error.message}`);
+    
+    // エラーの種類に応じて詳細なメッセージを提供
+    let detailedError = 'Twelve Labs動画分析エラー: ';
+    
+    if (error.message.includes('401') || error.message.includes('invalid')) {
+      detailedError += 'APIキーが無効です。TWELVE_LABS_API_KEYを確認してください。';
+    } else if (error.message.includes('429') || error.message.includes('quota')) {
+      detailedError += '無料枠を超過しました。使用状況を確認するか、有料プランにアップグレードしてください。';
+    } else if (error.message.includes('timeout')) {
+      detailedError += '動画処理がタイムアウトしました。動画が長すぎるか、サーバーが混雑している可能性があります。';
+    } else if (error.message.includes('upload') || error.message.includes('Upload')) {
+      detailedError += '動画のアップロードに失敗しました。動画URLが有効か確認してください。';
+    } else if (error.message.includes('processing failed')) {
+      detailedError += '動画処理に失敗しました。動画フォーマット（MP4推奨）を確認してください。';
+    } else {
+      detailedError += error.message;
+    }
+    
+    throw new Error(detailedError);
   }
 }

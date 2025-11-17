@@ -292,10 +292,11 @@ webapp/
 
 - **バックエンド**: Hono (Cloudflare Workers)
 - **フロントエンド**: Vanilla JS + TailwindCSS (モバイル対応)
-- **AI分析（3段階）**: 
-  - **Tier 1**: Twelve Labs API（実動画映像分析・最高品質） 🆕
-  - **Tier 2**: OpenAI GPT-4o（説明文+メトリクス分析・高品質）
-  - **Tier 3**: Cloudflare Workers AI（数値のみ分析・標準品質）
+- **AI分析**: 
+  - **Primary**: Twelve Labs API（実動画映像分析・最高品質） 🆕
+    - **失敗時**: 処理停止 & エラー通知（デフォルト）
+  - **Alternative**: OpenAI GPT-4o（説明文+メトリクス分析・高品質）
+  - **Fallback**: Cloudflare Workers AI（数値のみ分析・標準品質）
 - **CSVパーサー**: PapaParse
 - **デプロイ**: Cloudflare Pages (本番稼働中 ✅)
 - **開発ツール**: Vite, Wrangler, PM2
@@ -397,14 +398,21 @@ pm2 stop comet-analyzer
 ※ Twelve Labs: $0.05/分  
 ※ GPT-4o Text: 入力$2.50/1M、出力$10.00/1M
 
-### 🔄 3段階自動フォールバック
+### ⚠️ 動画分析の動作モード
 
-1. **Twelve Labs API** 🆕 （最高品質）- 実動画の映像分析
+#### モード1: 動画分析必須（デフォルト）
+
+- **Twelve Labs API失敗 → 処理停止**
+- エラーを即座に通知
+- 動画分析が必須の場合に推奨
+
+#### モード2: 自動フォールバック
+
+1. **Twelve Labs API**（最高品質）- 実動画の映像分析
 2. **GPT-4o Text API**（高品質）- 説明文+メトリクス分析
 3. **Cloudflare Workers AI**（標準品質）- 数値のみ分析
 
-Twelve Labs APIキーが設定されている場合、実際の動画映像を分析します。
-未設定の場合は自動的にGPT-4oまたはCloudflare AIにフォールバックします。
+⚠️ デフォルトでは**モード1**です。動画分析が失敗したら、その場でエラー通知して処理を停止します。
 
 ## 🎯 完了している機能
 
