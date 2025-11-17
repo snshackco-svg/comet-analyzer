@@ -138,6 +138,18 @@ export async function fetchTikTokFromApify(
     const limitedResults = results.slice(0, 20);
     debugLog(location, `Limited results from ${results.length} to ${limitedResults.length} (max 20)`);
 
+    // デバッグ: Apifyレスポンスの最初のアイテムを詳細ログ
+    if (limitedResults.length > 0) {
+      const firstItem = limitedResults[0];
+      debugLog(location, '🔍 Apify response sample (first item)', {
+        hasVideoUrl: !!firstItem.videoUrl,
+        hasWebVideoUrl: !!firstItem.webVideoUrl,
+        videoUrl: firstItem.videoUrl,
+        webVideoUrl: firstItem.webVideoUrl,
+        allKeys: Object.keys(firstItem)
+      });
+    }
+
     // Apifyの結果を共通のVideoData形式に変換
     const videos: VideoData[] = limitedResults
       .filter((item) => (item.videoUrl || item.webVideoUrl) && item.playCount !== undefined)
