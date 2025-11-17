@@ -131,6 +131,10 @@ export async function fetchTikTokFromApify(
       shouldDownloadCovers: false,
       shouldDownloadSlideshowImages: false,
       shouldDownloadSubtitles: false,
+      proxySettings: {
+        useApifyProxy: true,
+        apifyProxyGroups: ['RESIDENTIAL']
+      },
     };
 
     const metadataResults: ApifyTikTokResult[] = await runApifyActor(scraperActorId, scraperInput, token);
