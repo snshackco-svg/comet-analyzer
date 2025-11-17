@@ -126,7 +126,7 @@ export async function fetchTikTokFromApify(
     const input = {
       hashtags: hashtags,
       resultsPerPage: resultsPerPage,
-      shouldDownloadVideos: false, // 動画ファイルはダウンロードしない
+      shouldDownloadVideos: true, // ✅ 動画ファイルをダウンロード（Twelve Labs分析用）
       shouldDownloadCovers: false,
       shouldDownloadSlideshowImages: false,
       shouldDownloadSubtitles: false,
@@ -144,28 +144,37 @@ export async function fetchTikTokFromApify(
       debugLog(location, '🔍 Apify response sample (first item)', {
         hasVideoUrl: !!firstItem.videoUrl,
         hasWebVideoUrl: !!firstItem.webVideoUrl,
+        hasVideoMetaDownloadUrl: !!firstItem.videoMeta?.downloadUrl,
         videoUrl: firstItem.videoUrl,
         webVideoUrl: firstItem.webVideoUrl,
+        videoMetaDownloadUrl: firstItem.videoMeta?.downloadUrl,
         allKeys: Object.keys(firstItem)
       });
     }
 
     // Apifyの結果を共通のVideoData形式に変換
     const videos: VideoData[] = limitedResults
-      .filter((item) => (item.videoUrl || item.webVideoUrl) && item.playCount !== undefined)
-      .map((item) => ({
-        // videoUrl（実際の動画URL）を優先、なければwebVideoUrl（ページURL）
-        video_url: item.videoUrl || item.webVideoUrl,
-        views: item.playCount || 0,
-        likes: item.diggCount || 0,
-        saves: item.collectCount || 0,
-        comments: item.commentCount || 0,
-        shares: item.shareCount || 0,
-        // メタデータを追加（Vision API分析用）
-        caption: item.text || '',
-        author_name: item.authorMeta?.nickName || '',
-        author_username: item.authorMeta?.name || '',
-      }));
+      .filter((item) => (item.videoMeta?.downloadUrl || item.videoUrl || item.webVideoUrl) && item.playCount !== undefined)
+      .map((item) => {
+        // 優先順位:
+        // 1. videoMeta.downloadUrl（shouldDownloadVideos: trueで取得したApifyストレージURL）
+        // 2. videoUrl（直接の動画URL、存在する場合）
+        // 3. webVideoUrl（TikTokページURL、最後の手段）
+        const videoUrlToUse = item.videoMeta?.downloadUrl || item.videoUrl || item.webVideoUrl;
+        
+        return {
+          video_url: videoUrlToUse,
+          views: item.playCount || 0,
+          likes: item.diggCount || 0,
+          saves: item.collectCount || 0,
+          comments: item.commentCount || 0,
+          shares: item.shareCount || 0,
+          // メタデータを追加（Vision API分析用）
+          caption: item.text || '',
+          author_name: item.authorMeta?.nickName || '',
+          author_username: item.authorMeta?.name || '',
+        };
+      });
 
     debugLog(location, `Converted ${videos.length} TikTok videos to VideoData format`);
 

@@ -88,8 +88,8 @@ export interface ApifyConfig {
 // ApifyのTikTok Scraperのレスポンス型
 export interface ApifyTikTokResult {
   id?: string;
-  videoUrl?: string; // 実際の動画ファイルURL（推奨）
-  webVideoUrl: string; // TikTokページURL（フォールバック）
+  videoUrl?: string; // shouldDownloadVideos: false の場合の動画URL（存在しない場合あり）
+  webVideoUrl: string; // TikTokページURL
   playCount: number;
   diggCount: number; // likes
   collectCount: number; // saves
@@ -101,6 +101,12 @@ export interface ApifyTikTokResult {
   authorMeta?: {
     name?: string;
     nickName?: string;
+  };
+  // shouldDownloadVideos: true の場合、Apifyストレージに保存される
+  // ダウンロードされた動画ファイルへの参照
+  videoMeta?: {
+    downloadUrl?: string; // Apifyストレージの動画URL
+    [key: string]: any;
   };
 }
 
