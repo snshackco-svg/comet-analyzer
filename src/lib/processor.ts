@@ -2,6 +2,7 @@ import { VideoData, SheetRowData, ProcessResult, SheetsConfig, Platform, HybridC
 import { calculateMetrics } from './metrics';
 import { generateAnalysis, generateAnalysisWithGPT4o } from './ai-analyzer';
 import { generateAnalysisWithGeminiVideo } from './gemini-analyzer';
+import { analyzeWithTwelveLabs } from './twelvelabs-analyzer';
 import { determineAnalysisMethod, getAnalysisReason, DEFAULT_HYBRID_CRITERIA } from './hybrid-analyzer';
 import {
   ensureSheetExists,
@@ -21,6 +22,7 @@ export async function processVideoData(
   ai?: any, // Cloudflare AI binding (optional)
   openaiApiKey?: string, // OpenAI API key (optional) - for GPT-4o text analysis
   geminiApiKey?: string, // Gemini API key (optional) - for video analysis
+  twelveLabsApiKey?: string, // Twelve Labs API key (optional) - for video analysis
   hybridCriteria?: HybridCriteria // ハイブリッド判定基準（省略時はデフォルト）
 ): Promise<ProcessResult> {
   // ハイブリッド基準のデフォルト設定
@@ -94,25 +96,54 @@ export async function processVideoData(
           const metrics = calculateMetrics(data);
           
           // ハイブリッド判定: どの分析方法を使うか決定
-          // Gemini APIキーがある場合は動画分析可能
-          const hasVideoAnalysis = !!geminiApiKey;
+          // Twelve Labs APIキーがある場合は動画分析可能（優先）
+          const hasVideoAnalysis = !!twelveLabsApiKey || !!geminiApiKey;
           const method = determineAnalysisMethod(data, metrics, criteria, hasVideoAnalysis);
           const reason = getAnalysisReason(data, metrics, criteria, method);
           
           // 判定結果に基づいてAI分析を実行
           let analysis: string;
-          if (method === 'vision' && geminiApiKey) {
-            // Gemini Video API: 実際の動画を分析
-            try {
-              analysis = await generateAnalysisWithGeminiVideo(platform, data, metrics, geminiApiKey);
-            } catch (error: any) {
-              console.error('[Hybrid] Gemini video analysis failed, falling back to GPT-4o text:', error.message);
-              // Gemini失敗時はGPT-4oテキスト分析にフォールバック
-              if (openaiApiKey) {
-                analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
-              } else {
-                analysis = await generateAnalysis(platform, data, metrics, ai);
+          if (method === 'vision') {
+            // 動画分析: Twelve Labs > Gemini > GPT-4o Text
+            if (twelveLabsApiKey) {
+              try {
+                analysis = await analyzeWithTwelveLabs(data.video_url, platform, data, metrics, twelveLabsApiKey);
+              } catch (error: any) {
+                console.error('[Hybrid] Twelve Labs video analysis failed, falling back:', error.message);
+                // Twelve Labs失敗時はGemini or GPT-4oにフォールバック
+                if (geminiApiKey) {
+                  try {
+                    analysis = await generateAnalysisWithGeminiVideo(platform, data, metrics, geminiApiKey);
+                  } catch (geminiError: any) {
+                    console.error('[Hybrid] Gemini video analysis also failed, falling back to GPT-4o:', geminiError.message);
+                    if (openaiApiKey) {
+                      analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+                    } else {
+                      analysis = await generateAnalysis(platform, data, metrics, ai);
+                    }
+                  }
+                } else if (openaiApiKey) {
+                  analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+                } else {
+                  analysis = await generateAnalysis(platform, data, metrics, ai);
+                }
               }
+            } else if (geminiApiKey) {
+              // Gemini Video API: 実際の動画を分析
+              try {
+                analysis = await generateAnalysisWithGeminiVideo(platform, data, metrics, geminiApiKey);
+              } catch (error: any) {
+                console.error('[Hybrid] Gemini video analysis failed, falling back to GPT-4o text:', error.message);
+                if (openaiApiKey) {
+                  analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+                } else {
+                  analysis = await generateAnalysis(platform, data, metrics, ai);
+                }
+              }
+            } else if (openaiApiKey) {
+              analysis = await generateAnalysisWithGPT4o(platform, data, metrics, openaiApiKey);
+            } else {
+              analysis = await generateAnalysis(platform, data, metrics, ai);
             }
           } else if (method === 'text' && openaiApiKey) {
             // GPT-4o Text: 説明文のみ分析
