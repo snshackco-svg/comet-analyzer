@@ -110,7 +110,7 @@ async function runApifyActor(
 }
 
 /**
- * TikTokのデータをApifyから取得
+ * TikTokのデータをApifyから取得（2段階: ハッシュタグ検索 + 動画ダウンロード）
  */
 export async function fetchTikTokFromApify(
   hashtags: string[],
@@ -118,61 +118,98 @@ export async function fetchTikTokFromApify(
   token: string
 ): Promise<ApifyFetchResult> {
   const location = 'apify-client/fetchTikTokFromApify';
-  debugLog(location, 'Fetching TikTok data via Apify', { hashtags, resultsPerPage });
+  debugLog(location, 'Fetching TikTok data via Apify (2-step process)', { hashtags, resultsPerPage });
 
   try {
-    // owner~actor-name 形式を使用（チルダが必須）
-    const actorId = 'clockworks~tiktok-scraper';
-    const input = {
+    // Step 1: ハッシュタグ検索でメタデータと動画URLを取得
+    debugLog(location, 'Step 1: Fetching video metadata from hashtags');
+    const scraperActorId = 'clockworks~tiktok-scraper';
+    const scraperInput = {
       hashtags: hashtags,
       resultsPerPage: resultsPerPage,
-      shouldDownloadVideos: true, // ✅ 動画ファイルをダウンロード（Twelve Labs分析用）
+      shouldDownloadVideos: false, // メタデータのみ取得
       shouldDownloadCovers: false,
       shouldDownloadSlideshowImages: false,
       shouldDownloadSubtitles: false,
     };
 
-    const results: ApifyTikTokResult[] = await runApifyActor(actorId, input, token);
+    const metadataResults: ApifyTikTokResult[] = await runApifyActor(scraperActorId, scraperInput, token);
 
     // 安全のため、結果を20件に制限（Cloudflare無料プランの上限対応）
-    const limitedResults = results.slice(0, 20);
-    debugLog(location, `Limited results from ${results.length} to ${limitedResults.length} (max 20)`);
+    const limitedMetadata = metadataResults.slice(0, 20);
+    debugLog(location, `Limited results from ${metadataResults.length} to ${limitedMetadata.length} (max 20)`);
 
-    // デバッグ: Apifyレスポンスの最初のアイテムを詳細ログ
-    if (limitedResults.length > 0) {
-      const firstItem = limitedResults[0];
-      debugLog(location, '🔍 Apify response sample (first item)', {
-        hasVideoUrl: !!firstItem.videoUrl,
-        hasWebVideoUrl: !!firstItem.webVideoUrl,
-        hasVideoMetaDownloadUrl: !!firstItem.videoMeta?.downloadUrl,
-        videoUrl: firstItem.videoUrl,
-        webVideoUrl: firstItem.webVideoUrl,
-        videoMetaDownloadUrl: firstItem.videoMeta?.downloadUrl,
-        allKeys: Object.keys(firstItem)
+    if (limitedMetadata.length === 0) {
+      debugLog(location, 'No videos found from hashtag search');
+      return {
+        success: true,
+        platform: 'tiktok',
+        source: 'apify',
+        videos: [],
+      };
+    }
+
+    // Step 2: 動画ダウンロード専用Actorで実際の動画URLを取得
+    debugLog(location, `Step 2: Downloading ${limitedMetadata.length} videos to get actual file URLs`);
+    const downloaderActorId = 'radeance~tiktok-video-scraper-premium';
+    const videoUrls = limitedMetadata.map(item => item.webVideoUrl);
+    
+    const downloaderInput = {
+      urls: videoUrls,
+      download_videos: true,
+      download_slideshows: false,
+      download_audio: false,
+      download_subtitles: false,
+      quality: 'highest'
+    };
+
+    interface DownloadResult {
+      id?: string;
+      downloadUrl?: string; // Apifyストレージの動画URL
+      videoUrl?: string; // TikTok CDN URL
+      likeCount?: number;
+      shareCount?: number;
+      commentCount?: number;
+      playCount?: number;
+      collectCount?: number;
+      description?: string;
+      author_unique_id?: string;
+      author_nickname?: string;
+      webVideoUrl?: string;
+    }
+
+    const downloadResults: DownloadResult[] = await runApifyActor(downloaderActorId, downloaderInput, token);
+
+    // デバッグ: ダウンロード結果の確認
+    if (downloadResults.length > 0) {
+      const firstDownload = downloadResults[0];
+      debugLog(location, '🔍 Download result sample (first item)', {
+        hasDownloadUrl: !!firstDownload.downloadUrl,
+        hasVideoUrl: !!firstDownload.videoUrl,
+        downloadUrl: firstDownload.downloadUrl,
+        videoUrl: firstDownload.videoUrl,
+        allKeys: Object.keys(firstDownload)
       });
     }
 
-    // Apifyの結果を共通のVideoData形式に変換
-    const videos: VideoData[] = limitedResults
-      .filter((item) => (item.videoMeta?.downloadUrl || item.videoUrl || item.webVideoUrl) && item.playCount !== undefined)
+    // メタデータとダウンロードURLをマージ
+    const videos: VideoData[] = downloadResults
+      .filter((item) => (item.downloadUrl || item.videoUrl) && item.playCount !== undefined)
       .map((item) => {
-        // 優先順位:
-        // 1. videoMeta.downloadUrl（shouldDownloadVideos: trueで取得したApifyストレージURL）
-        // 2. videoUrl（直接の動画URL、存在する場合）
-        // 3. webVideoUrl（TikTokページURL、最後の手段）
-        const videoUrlToUse = item.videoMeta?.downloadUrl || item.videoUrl || item.webVideoUrl;
+        // downloadUrl（Apifyストレージ）を優先、なければvideoUrl（TikTok CDN）
+        const videoUrlToUse = item.downloadUrl || item.videoUrl || '';
         
         return {
           video_url: videoUrlToUse,
           views: item.playCount || 0,
-          likes: item.diggCount || 0,
+          likes: item.likeCount || 0,
           saves: item.collectCount || 0,
           comments: item.commentCount || 0,
           shares: item.shareCount || 0,
-          // メタデータを追加（Vision API分析用）
-          caption: item.text || '',
-          author_name: item.authorMeta?.nickName || '',
-          author_username: item.authorMeta?.name || '',
+          // メタデータを追加
+          caption: item.description || '',
+          author_name: item.author_nickname || '',
+          author_username: item.author_unique_id || '',
         };
       });
 
