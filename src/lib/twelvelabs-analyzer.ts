@@ -84,6 +84,14 @@ async function uploadVideoToIndex(
   indexId: string,
   videoUrl: string
 ): Promise<string> {
+  // デバッグ: アップロード試行ログ
+  console.log('[Twelve Labs] 🎬 Attempting video upload:', {
+    videoUrl,
+    indexId,
+    urlLength: videoUrl.length,
+    urlStartsWith: videoUrl.substring(0, 50)
+  });
+
   // FormData形式で送信
   const formData = new FormData();
   formData.append('index_id', indexId);
@@ -99,12 +107,23 @@ async function uploadVideoToIndex(
     body: formData
   });
 
+  // デバッグ: レスポンスログ
+  console.log('[Twelve Labs] Upload response:', {
+    status: response.status,
+    ok: response.ok
+  });
+
   if (!response.ok) {
     const error = await response.text();
+    console.error('[Twelve Labs] ❌ Upload failed:', {
+      status: response.status,
+      error: error.substring(0, 500) // 最初の500文字
+    });
     throw new Error(`Twelve Labs: Failed to upload video (${response.status}): ${error}`);
   }
 
   const data = await response.json();
+  console.log('[Twelve Labs] ✅ Task created:', data._id);
   return data._id; // task_id
 }
 
