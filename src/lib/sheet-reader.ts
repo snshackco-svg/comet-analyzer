@@ -12,7 +12,8 @@ import type {
   ProcessResult,
 } from '../types';
 import { calculateMetrics } from './metrics';
-import { generateAnalysis, generateAnalysisWithGPT4o, generateAnalysisWithVision } from './ai-analyzer';
+import { generateAnalysis, generateAnalysisWithGPT4o } from './ai-analyzer';
+import { generateAnalysisWithGeminiVideo } from './gemini-analyzer';
 import { determineAnalysisMethod, getAnalysisReason, DEFAULT_HYBRID_CRITERIA } from './hybrid-analyzer';
 import { getAllSheetData, updateRowsInSheet } from './sheets-manager';
 import { debugLog, errorLog, PerformanceTimer } from './debug';
@@ -112,6 +113,7 @@ export async function enhanceCometData(
   platform: Platform,
   ai: any,
   openaiApiKey?: string,
+  geminiApiKey?: string,
   hybridCriteria?: import('../types').HybridCriteria
 ): Promise<EnhancedSheetRowData[]> {
   // ハイブリッド基準のデフォルト設定
@@ -147,25 +149,46 @@ export async function enhanceCometData(
           };
 
           // ハイブリッド判定: どの分析方法を使うか決定
-          const method = determineAnalysisMethod(videoData, metrics, criteria, !!openaiApiKey);
+          const hasVideoAnalysis = !!geminiApiKey;
+          const method = determineAnalysisMethod(videoData, metrics, criteria, hasVideoAnalysis);
           const reason = getAnalysisReason(videoData, metrics, criteria, method);
 
           // 判定結果に基づいてAI分析を実行
-          if (method === 'vision') {
-            // Vision API: 映像+説明文の総合分析
-            systemAnalysis = await generateAnalysisWithVision(
-              platform,
-              videoData,
-              metrics,
-              openaiApiKey!
-            );
-          } else if (method === 'text') {
+          if (method === 'vision' && geminiApiKey) {
+            // Gemini Video API: 実際の動画を分析
+            try {
+              systemAnalysis = await generateAnalysisWithGeminiVideo(
+                platform,
+                videoData,
+                metrics,
+                geminiApiKey
+              );
+            } catch (error: any) {
+              console.error('[Hybrid] Gemini video analysis failed, falling back to GPT-4o text:', error.message);
+              // Gemini失敗時はGPT-4oテキスト分析にフォールバック
+              if (openaiApiKey) {
+                systemAnalysis = await generateAnalysisWithGPT4o(
+                  platform,
+                  videoData,
+                  metrics,
+                  openaiApiKey
+                );
+              } else {
+                systemAnalysis = await generateAnalysis(
+                  platform,
+                  videoData,
+                  metrics,
+                  ai
+                );
+              }
+            }
+          } else if (method === 'text' && openaiApiKey) {
             // GPT-4o Text: 説明文のみ分析
             systemAnalysis = await generateAnalysisWithGPT4o(
               platform,
               videoData,
               metrics,
-              openaiApiKey!
+              openaiApiKey
             );
           } else {
             // Cloudflare AI: フォールバック

@@ -20,7 +20,8 @@ type Bindings = {
   SPREADSHEET_ID?: string; // Google Spreadsheet ID from environment
   GOOGLE_CREDENTIALS?: string; // Google service account credentials from environment
   APIFY_TOKEN?: string; // Apify API token from environment
-  OPENAI_API_KEY?: string; // OpenAI API key for GPT-4o analysis
+  OPENAI_API_KEY?: string; // OpenAI API key for GPT-4o text analysis
+  GEMINI_API_KEY?: string; // Gemini API key for video analysis
 };
 
 const api = new Hono<{ Bindings: Bindings }>();
@@ -309,7 +310,9 @@ api.post('/process', async (c) => {
       videoData,
       sheetsConfig,
       googleCredentials,
-      c.env?.AI // Cloudflare AI binding
+      c.env?.AI, // Cloudflare AI binding
+      c.env?.OPENAI_API_KEY, // OpenAI API key for GPT-4o text analysis
+      c.env?.GEMINI_API_KEY // Gemini API key for video analysis
     );
     processTimer.end(
       `Processed ${result.new_count}/${result.total_count} items`
@@ -681,7 +684,8 @@ api.post('/fetch-apify', async (c) => {
       },
       googleCredentials,
       c.env?.AI,
-      c.env?.OPENAI_API_KEY // OpenAI API key for GPT-4o analysis
+      c.env?.OPENAI_API_KEY, // OpenAI API key for GPT-4o text analysis
+      c.env?.GEMINI_API_KEY // Gemini API key for video analysis
     );
     processTimer.end(`Processed ${result.total_count} videos`);
 
@@ -847,7 +851,8 @@ api.post('/fetch-from-sheet', async (c) => {
       },
       platform,
       c.env?.AI,
-      c.env?.OPENAI_API_KEY // OpenAI API key for GPT-4o analysis
+      c.env?.OPENAI_API_KEY, // OpenAI API key for GPT-4o text analysis
+      c.env?.GEMINI_API_KEY // Gemini API key for video analysis
     );
     processTimer.end(`Processed ${result.total_count} rows`);
 
