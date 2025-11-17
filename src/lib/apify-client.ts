@@ -140,9 +140,10 @@ export async function fetchTikTokFromApify(
 
     // Apifyの結果を共通のVideoData形式に変換
     const videos: VideoData[] = limitedResults
-      .filter((item) => item.webVideoUrl && item.playCount !== undefined)
+      .filter((item) => (item.videoUrl || item.webVideoUrl) && item.playCount !== undefined)
       .map((item) => ({
-        video_url: item.webVideoUrl,
+        // videoUrl（実際の動画URL）を優先、なければwebVideoUrl（ページURL）
+        video_url: item.videoUrl || item.webVideoUrl,
         views: item.playCount || 0,
         likes: item.diggCount || 0,
         saves: item.collectCount || 0,

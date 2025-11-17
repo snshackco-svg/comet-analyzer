@@ -88,7 +88,8 @@ export interface ApifyConfig {
 // ApifyのTikTok Scraperのレスポンス型
 export interface ApifyTikTokResult {
   id?: string;
-  webVideoUrl: string;
+  videoUrl?: string; // 実際の動画ファイルURL（推奨）
+  webVideoUrl: string; // TikTokページURL（フォールバック）
   playCount: number;
   diggCount: number; // likes
   collectCount: number; // saves
