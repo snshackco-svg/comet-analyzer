@@ -257,13 +257,15 @@ app.get('/', (c) => {
                                 取得件数
                             </label>
                             <select id="apify_results" class="form-input">
-                                <option value="10" selected>10件（推奨・Vision API対応）</option>
+                                <option value="1">1件（テスト用）</option>
+                                <option value="5">5件（少量テスト）</option>
+                                <option value="10" selected>10件（推奨）</option>
                                 <option value="15">15件（標準）</option>
                                 <option value="20">20件（上限）</option>
                             </select>
                             <p class="text-xs text-gray-500 mt-1">
-                                💰 Vision API料金: 10件 ≈ $0.80-1.50<br/>
-                                ⏱️ 処理時間: 約60-90秒
+                                💰 Twelve Labs料金: 1分動画 ≈ $0.05（無料枠: 月600分）<br/>
+                                ⏱️ 処理時間: 1動画あたり約1-2分
                             </p>
                         </div>
                     </div>
