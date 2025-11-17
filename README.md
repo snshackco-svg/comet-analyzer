@@ -78,10 +78,10 @@
 ## 🚀 現在のURL
 
 ### 本番環境
-- **Production URL**: https://0db49072.comet-analyzer.pages.dev
+- **Production URL**: https://248f44c1.comet-analyzer.pages.dev
 - **プロジェクト**: comet-analyzer
 - **プラットフォーム**: Cloudflare Pages
-- **最終デプロイ**: 2025-01-17
+- **最終デプロイ**: 2025-11-17 (Twelve Labs v1.3統合完了)
 
 ### 開発環境
 - **Sandbox URL**: https://3000-ik4b2rxylqqe2sbqg2wuz-82b888ba.sandbox.novita.ai
