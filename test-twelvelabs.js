@@ -12,7 +12,7 @@
  */
 
 const TWELVE_LABS_API_KEY = process.env.TWELVE_LABS_API_KEY || 'YOUR_API_KEY_HERE';
-const BASE_URL = 'https://api.twelvelabs.io/v1.2';
+const BASE_URL = 'https://api.twelvelabs.io/v1.3';
 
 // テスト用TikTok動画URL（Apify経由で取得する実際の動画URL）
 const TEST_VIDEO_URL = 'https://example.com/test.mp4'; // 実際のURLに置き換え

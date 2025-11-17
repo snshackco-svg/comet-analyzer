@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "hono": "^4.10.6",
-    "papaparse": "^5.5.3"
+    "papaparse": "^5.5.3",
+    "twelvelabs-js": "^1.0.2"
   },
   "devDependencies": {
     "@hono/vite-build": "^1.2.0",

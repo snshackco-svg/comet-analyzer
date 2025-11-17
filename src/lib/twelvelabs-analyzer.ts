@@ -6,7 +6,10 @@
 
 import type { Platform, VideoData, CalculatedMetrics } from '../types';
 
-const BASE_URL = 'https://api.twelvelabs.io/v1.2';
+const BASE_URL = 'https://api.twelvelabs.io/v1.3';
+
+// Note: Twelve Labs v1.3 SDK requires file upload, but we need URL-based upload for Cloudflare Workers
+// We'll use REST API directly with multipart/form-data
 
 interface TwelveLabsConfig {
   apiKey: string;
@@ -74,23 +77,26 @@ export async function getTwelveLabsIndex(apiKey: string): Promise<string | null>
 
 /**
  * 動画をIndexに追加してタスク作成
+ * Note: v1.3 API requires multipart/form-data for URL-based uploads
  */
 async function uploadVideoToIndex(
   apiKey: string,
   indexId: string,
   videoUrl: string
 ): Promise<string> {
+  // FormData形式で送信
+  const formData = new FormData();
+  formData.append('index_id', indexId);
+  formData.append('video_url', videoUrl);
+  formData.append('language', 'en');
+  
   const response = await fetch(`${BASE_URL}/tasks`, {
     method: 'POST',
     headers: {
-      'x-api-key': apiKey,
-      'Content-Type': 'application/json'
+      'x-api-key': apiKey
+      // Content-Typeは自動設定されるため指定しない
     },
-    body: JSON.stringify({
-      index_id: indexId,
-      video_url: videoUrl,
-      language: 'en'
-    })
+    body: formData
   });
 
   if (!response.ok) {
@@ -140,7 +146,8 @@ async function waitForTask(
 }
 
 /**
- * 動画を分析（Generate Text）
+ * 動画を分析（Summarize - Custom Prompt）
+ * Note: v1.3 uses 'summarize' endpoint for custom prompts
  */
 async function generateAnalysis(
   apiKey: string,
@@ -151,16 +158,19 @@ async function generateAnalysis(
 ): Promise<string> {
   const prompt = buildAnalysisPrompt(platform, videoData, metrics);
 
-  const response = await fetch(`${BASE_URL}/generate`, {
+  // FormData形式で送信
+  const formData = new FormData();
+  formData.append('video_id', videoId);
+  formData.append('prompt', prompt);
+  formData.append('type', 'summary'); // summary type
+
+  const response = await fetch(`${BASE_URL}/summarize`, {
     method: 'POST',
     headers: {
-      'x-api-key': apiKey,
-      'Content-Type': 'application/json'
+      'x-api-key': apiKey
+      // Content-Typeは自動設定
     },
-    body: JSON.stringify({
-      video_id: videoId,
-      prompt: prompt
-    })
+    body: formData
   });
 
   if (!response.ok) {
@@ -169,7 +179,7 @@ async function generateAnalysis(
   }
 
   const data = await response.json();
-  return data.data;
+  return data.summary || data.data || JSON.stringify(data);
 }
 
 /**
