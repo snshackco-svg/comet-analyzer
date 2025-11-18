@@ -30,7 +30,8 @@ async function runApifyActor(
     // Authorizationヘッダーを使用（推奨）
     const url = `${APIFY_API_BASE}/acts/${actorId}/runs`;
     debugLog(location, `Calling Apify API: POST ${url}`);
-    debugLog(location, `Actor ID: ${actorId}`, { input });
+    debugLog(location, `Actor ID: ${actorId}`);
+    debugLog(location, `Input:`, JSON.stringify(input, null, 2));
     
     const runResponse = await fetch(url, {
       method: 'POST',
@@ -125,14 +126,20 @@ export async function fetchTikTokFromApify(
     debugLog(location, `Step 1: Searching for hashtags: ${hashtags.join(', ')}`);
     
     const searchActorId = 'clockworks~tiktok-scraper';
+    
+    // ハッシュタグの形式を統一（#を削除し、配列ではなくカンマ区切り文字列に変換）
+    const cleanHashtags = hashtags.map(tag => tag.replace(/^#/, '').trim());
+    
     const searchInput = {
-      hashtags: hashtags,
+      hashtags: cleanHashtags,
       resultsPerPage: resultsPerPage,
       shouldDownloadVideos: false, // 検索段階では動画ダウンロード不要
       shouldDownloadCovers: false,
       shouldDownloadSubtitles: false,
       shouldDownloadSlideshowImages: false,
     };
+    
+    debugLog(location, `Search input prepared:`, { hashtags: cleanHashtags, resultsPerPage });
 
     interface SearchResult {
       id?: string;
@@ -157,6 +164,16 @@ export async function fetchTikTokFromApify(
     }
 
     debugLog(location, `Step 1 Complete: Found ${searchResults.length} TikTok videos`);
+    
+    // デバッグログ: 検索結果の最初の動画を確認
+    if (searchResults.length > 0) {
+      const firstResult = searchResults[0];
+      debugLog(location, `First search result sample:`, {
+        webVideoUrl: firstResult.webVideoUrl?.substring(0, 80),
+        text: firstResult.text?.substring(0, 100),
+        hasHashtag: firstResult.text?.toLowerCase().includes(hashtags[0].toLowerCase())
+      });
+    }
 
     // 🔧 Step 2: 見つかった動画URLをPremium Actorでダウンロード
     const videoUrls = searchResults
