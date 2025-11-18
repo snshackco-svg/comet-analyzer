@@ -125,35 +125,43 @@ export async function fetchTikTokFromApify(
     // 🔧 Step 1: ハッシュタグ検索でTikTok URLを取得
     debugLog(location, `Step 1: Searching for hashtags: ${hashtags.join(', ')}`);
     
-    const searchActorId = 'clockworks~tiktok-scraper';
+    // 🔄 Actor変更: clockworks~tiktok-scraper → apify/tiktok-scraper (公式)
+    const searchActorId = 'apify/tiktok-scraper';
     
-    // ハッシュタグの形式を統一（#を削除し、配列ではなくカンマ区切り文字列に変換）
+    // ハッシュタグの形式を統一（#を削除）
     const cleanHashtags = hashtags.map(tag => tag.replace(/^#/, '').trim());
     
+    // apify/tiktok-scraperの入力形式に合わせる
     const searchInput = {
       hashtags: cleanHashtags,
-      resultsPerPage: resultsPerPage,
-      shouldDownloadVideos: false, // 検索段階では動画ダウンロード不要
+      resultsPerHashtag: resultsPerPage,
+      shouldDownloadVideos: false,
       shouldDownloadCovers: false,
       shouldDownloadSubtitles: false,
-      shouldDownloadSlideshowImages: false,
     };
     
-    debugLog(location, `Search input prepared:`, { hashtags: cleanHashtags, resultsPerPage });
+    debugLog(location, `Search input prepared (apify/tiktok-scraper):`, { hashtags: cleanHashtags, resultsPerHashtag: resultsPerPage });
 
     interface SearchResult {
       id?: string;
       webVideoUrl?: string; // TikTokページURL
       videoUrl?: string; // TikTok CDN直接URL
+      url?: string; // apify/tiktok-scraperの場合
       likeCount?: number;
+      diggCount?: number; // apify/tiktok-scraperではこちらを使用
       shareCount?: number;
       commentCount?: number;
       playCount?: number;
       collectCount?: number;
       text?: string;
+      desc?: string; // apify/tiktok-scraperではこちらを使用
       authorMeta?: {
         name?: string;
         nickName?: string;
+      };
+      author?: {
+        uniqueId?: string;
+        nickname?: string;
       };
     }
 
@@ -168,20 +176,24 @@ export async function fetchTikTokFromApify(
     // デバッグログ: 検索結果の最初の動画を確認
     if (searchResults.length > 0) {
       const firstResult = searchResults[0];
+      const videoUrl = firstResult.webVideoUrl || firstResult.url || '';
+      const description = firstResult.text || firstResult.desc || '';
       debugLog(location, `First search result sample:`, {
-        webVideoUrl: firstResult.webVideoUrl?.substring(0, 80),
-        text: firstResult.text?.substring(0, 100),
-        hasHashtag: firstResult.text?.toLowerCase().includes(hashtags[0].toLowerCase())
+        url: videoUrl.substring(0, 80),
+        description: description.substring(0, 100),
+        hasHashtag: description.toLowerCase().includes(hashtags[0].toLowerCase()),
+        allKeys: Object.keys(firstResult)
       });
     }
 
     // 🔧 Step 2: 見つかった動画URLをPremium Actorでダウンロード
     const videoUrls = searchResults
-      .filter(item => item.webVideoUrl)
-      .map(item => item.webVideoUrl!)
+      .filter(item => item.webVideoUrl || item.url)
+      .map(item => item.webVideoUrl || item.url!)
       .slice(0, resultsPerPage);
 
     debugLog(location, `Step 2: Downloading ${videoUrls.length} videos with Premium Actor`);
+    debugLog(location, `Video URLs (sample):`, videoUrls.slice(0, 3));
 
     const premiumActorId = 'radeance~tiktok-video-scraper-premium';
     
@@ -241,9 +253,13 @@ export async function fetchTikTokFromApify(
 
     // メタデータから動画データを作成
     const videos: VideoData[] = searchResults
-      .filter((item) => item.webVideoUrl && videoDataMap.has(item.webVideoUrl))
+      .filter((item) => {
+        const webUrl = item.webVideoUrl || item.url;
+        return webUrl && videoDataMap.has(webUrl);
+      })
       .map((searchItem) => {
-        const downloadItem = videoDataMap.get(searchItem.webVideoUrl!)!;
+        const webUrl = searchItem.webVideoUrl || searchItem.url!;
+        const downloadItem = videoDataMap.get(webUrl)!;
         
         // 🎬 動画分析のため、Apifyストレージの動画を最優先
         // Cloudflare Workersでダウンロードして、Twelve Labsにファイルアップロード
@@ -252,16 +268,16 @@ export async function fetchTikTokFromApify(
         
         return {
           video_url: videoFileUrl, // 動画ファイルのURL（分析用）
-          tiktok_web_url: searchItem.webVideoUrl, // TikTokのWebページURL（スプレッドシート用）
+          tiktok_web_url: webUrl, // TikTokのWebページURL（スプレッドシート用）
           views: searchItem.playCount || 0,
-          likes: searchItem.likeCount || 0,
+          likes: searchItem.likeCount || searchItem.diggCount || 0,
           saves: searchItem.collectCount || 0,
           comments: searchItem.commentCount || 0,
           shares: searchItem.shareCount || 0,
           // メタデータを追加
-          caption: searchItem.text || downloadItem.description || '',
-          author_name: searchItem.authorMeta?.nickName || downloadItem.author_nickname || '',
-          author_username: searchItem.authorMeta?.name || downloadItem.author_unique_id || '',
+          caption: searchItem.text || searchItem.desc || downloadItem.description || '',
+          author_name: searchItem.authorMeta?.nickName || searchItem.author?.nickname || downloadItem.author_nickname || '',
+          author_username: searchItem.authorMeta?.name || searchItem.author?.uniqueId || downloadItem.author_unique_id || '',
         };
       });
 
