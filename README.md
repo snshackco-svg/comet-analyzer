@@ -79,10 +79,10 @@
 
 ### 本番環境
 - **Production URL**: https://comet-analyzer.pages.dev
-- **Latest Deployment**: https://850f7f55.comet-analyzer.pages.dev
+- **Latest Deployment**: https://0e657901.comet-analyzer.pages.dev
 - **プロジェクト**: comet-analyzer
 - **プラットフォーム**: Cloudflare Pages
-- **最終デプロイ**: 2025-11-18 (Twelve Labs動画分析完全統合 ✅)
+- **最終デプロイ**: 2025-11-18 (ハッシュタグ検索有効化 & TikTok URL修正 ✅)
 - **ステータス**: ✅ 本番稼働中
 
 ### 開発環境
