@@ -125,22 +125,26 @@ export async function fetchTikTokFromApify(
     // 🔧 Step 1: ハッシュタグ検索でTikTok URLを取得
     debugLog(location, `Step 1: Searching for hashtags: ${hashtags.join(', ')}`);
     
-    // 🔄 Actor変更: clockworks~tiktok-scraper → apify/tiktok-scraper (公式)
-    const searchActorId = 'apify/tiktok-scraper';
+    // 🔄 TikTok Hashtag Scraper - ハッシュタグ専用のActor
+    const searchActorId = 'OsFBRzUUQW2jMdSsP'; // TikTok Scraper by Apify (公式ID)
     
     // ハッシュタグの形式を統一（#を削除）
     const cleanHashtags = hashtags.map(tag => tag.replace(/^#/, '').trim());
     
-    // apify/tiktok-scraperの入力形式に合わせる
+    // TikTok Scraperの入力形式
     const searchInput = {
       hashtags: cleanHashtags,
-      resultsPerHashtag: resultsPerPage,
+      resultsPerPage: resultsPerPage,
       shouldDownloadVideos: false,
       shouldDownloadCovers: false,
       shouldDownloadSubtitles: false,
     };
     
-    debugLog(location, `Search input prepared (apify/tiktok-scraper):`, { hashtags: cleanHashtags, resultsPerHashtag: resultsPerPage });
+    debugLog(location, `Search input prepared (TikTok Scraper):`, { 
+      actorId: searchActorId,
+      hashtags: cleanHashtags, 
+      resultsPerPage 
+    });
 
     interface SearchResult {
       id?: string;
