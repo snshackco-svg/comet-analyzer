@@ -52,8 +52,10 @@ export async function processVideoData(
     result.logs.push(`【${platformName}】既存の動画数: ${existingUrls.size}件`);
 
     // 新規データのみをフィルタリング
+    // WebページURL（tiktok_web_url / instagram_web_url）があればそれを、なければvideo_urlを使用
     const newVideoData = videoData.filter((data) => {
-      if (existingUrls.has(data.video_url.trim())) {
+      const urlToCheck = (data as any).tiktok_web_url || (data as any).instagram_web_url || data.video_url;
+      if (existingUrls.has(urlToCheck.trim())) {
         result.skipped_count++;
         return false;
       }

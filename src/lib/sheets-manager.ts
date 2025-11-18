@@ -198,7 +198,8 @@ export async function appendRowsToSheet(
   const values = rows.map((row) => [
     row.platform, // A列: プラットフォーム
     row.date, // B列: 取得日
-    row.video_url, // C列: 動画リンク
+    // C列: WebページURL（TikTok/InstagramのページURL、なければ動画URL）
+    (row as any).tiktok_web_url || (row as any).instagram_web_url || row.video_url,
     row.views, // D列: 再生数
     row.likes, // E列: いいね数
     row.saves, // F列: 保存数

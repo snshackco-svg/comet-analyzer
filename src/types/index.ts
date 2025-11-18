@@ -3,7 +3,7 @@ export type Platform = 'tiktok' | 'instagram';
 
 // 動画データの型定義（TikTok/Instagram共通）
 export interface VideoData {
-  video_url: string;
+  video_url: string;        // 動画ファイルのURL（分析用）
   views: number;
   likes: number;
   saves: number;
@@ -13,6 +13,8 @@ export interface VideoData {
   caption?: string;         // 動画の説明文・キャプション
   author_name?: string;     // 投稿者の表示名
   author_username?: string; // 投稿者のユーザー名/ID
+  tiktok_web_url?: string;  // TikTokのWebページURL（スプレッドシート保存用）
+  instagram_web_url?: string; // InstagramのWebページURL（スプレッドシート保存用）
 }
 
 // 後方互換性のため残す
