@@ -111,7 +111,7 @@ async function runApifyActor(
 }
 
 /**
- * TikTokのデータをApifyから取得（Premium Actor直接使用）
+ * TikTokのデータをApifyから取得（TikTok Hashtag Scraper使用）
  */
 export async function fetchTikTokFromApify(
   hashtags: string[],
@@ -119,99 +119,84 @@ export async function fetchTikTokFromApify(
   token: string
 ): Promise<ApifyFetchResult> {
   const location = 'apify-client/fetchTikTokFromApify';
-  debugLog(location, 'Fetching TikTok data via Apify (Premium Actor with hashtag search)', { hashtags, resultsPerPage });
+  debugLog(location, 'Fetching TikTok data via Apify (TikTok Hashtag Scraper)', { hashtags, resultsPerPage });
 
   try {
     // 🔧 ハッシュタグの形式を統一（#を削除）
     const cleanHashtags = hashtags.map(tag => tag.replace(/^#/, '').trim());
     
-    // 🔧 Premium ActorでハッシュタグURLを直接検索
-    // TikTokのハッシュタグページURLを生成
-    const hashtagUrls = cleanHashtags.map(tag => `https://www.tiktok.com/tag/${encodeURIComponent(tag)}`);
-    
-    debugLog(location, `Using Premium Actor with hashtag URLs:`, { 
+    debugLog(location, `Using TikTok Hashtag Scraper:`, { 
       originalHashtags: hashtags,
       cleanHashtags: cleanHashtags,
-      hashtagUrls: hashtagUrls,
       resultsPerPage 
     });
 
-    // 🔧 Premium Actorで直接ハッシュタグページをスクレイピング
-
-    const premiumActorId = 'radeance~tiktok-video-scraper-premium';
+    // 🎯 TikTok Hashtag Scraper - ハッシュタグ専用のActor
+    const hashtagActorId = 'clockworks~free-tiktok-scraper'; // 無料版のTikTok Scraper
     
-    const premiumInput = {
-      urls: hashtagUrls, // ハッシュタグページURLを直接指定
-      max_videos_per_url: resultsPerPage, // 各ハッシュタグから取得する動画数
-      download_videos: true, // Apifyストレージにダウンロード
-      download_slideshows: false,
-      download_audio: false,
-      download_subtitles: false,
-      quality: 'highest',
-      // ⚠️ Premium Actorはproxy設定が必須（レンタルプランの要件）
-      proxySettings: {
-        useApifyProxy: true,
-        apifyProxyGroups: ['RESIDENTIAL'],
-      }
+    const hashtagInput = {
+      hashtags: cleanHashtags, // ハッシュタグ名のみ（配列）
+      resultsPerPage: resultsPerPage,
+      shouldDownloadVideos: false, // まず検索のみ
+      shouldDownloadCovers: false,
+      shouldDownloadSubtitles: false,
     };
     
-    debugLog(location, `Premium Actor input:`, premiumInput);
+    debugLog(location, `Hashtag Scraper input:`, hashtagInput);
 
-    interface PremiumResult {
+    interface HashtagResult {
       id?: string;
-      downloadUrl?: string; // Apifyストレージの動画URL（最優先）
-      videoUrl?: string; // TikTok CDN直接URL
-      likeCount?: number;
+      webVideoUrl?: string; // TikTokページURL
+      videoUrl?: string; // TikTok CDN直接URL (Apifyストレージの可能性も)
+      diggCount?: number; // likes
       shareCount?: number;
       commentCount?: number;
       playCount?: number;
-      collectCount?: number;
-      description?: string;
-      author_unique_id?: string;
-      author_nickname?: string;
-      webVideoUrl?: string; // TikTokページURL
+      collectCount?: number; // saves
+      text?: string; // description
+      authorMeta?: {
+        id?: string;
+        name?: string;
+        nickName?: string;
+      };
     }
 
-    const premiumResults: PremiumResult[] = await runApifyActor(premiumActorId, premiumInput, token);
+    const hashtagResults: HashtagResult[] = await runApifyActor(hashtagActorId, hashtagInput, token);
     
-    if (!premiumResults || premiumResults.length === 0) {
+    if (!hashtagResults || hashtagResults.length === 0) {
       throw new Error(`No TikTok videos found for hashtags: ${hashtags.join(', ')}`);
     }
 
-    debugLog(location, `Premium Actor Complete: Retrieved ${premiumResults.length} videos`);
+    debugLog(location, `Hashtag Scraper Complete: Retrieved ${hashtagResults.length} videos`);
 
-    // デバッグ: Premium Actor結果の確認
-    if (premiumResults.length > 0) {
-      const firstResult = premiumResults[0];
-      debugLog(location, '🔍 Premium Actor result sample (first item)', {
-        hasDownloadUrl: !!firstResult.downloadUrl,
-        hasVideoUrl: !!firstResult.videoUrl,
+    // デバッグ: 結果の確認
+    if (hashtagResults.length > 0) {
+      const firstResult = hashtagResults[0];
+      debugLog(location, '🔍 Hashtag Scraper result sample (first item)', {
         hasWebVideoUrl: !!firstResult.webVideoUrl,
-        description: firstResult.description?.substring(0, 100),
+        hasVideoUrl: !!firstResult.videoUrl,
+        webVideoUrl: firstResult.webVideoUrl?.substring(0, 80),
+        text: firstResult.text?.substring(0, 100),
         allKeys: Object.keys(firstResult)
       });
     }
 
     // メタデータから動画データを作成
-    const videos: VideoData[] = premiumResults
-      .filter((item) => (item.downloadUrl || item.videoUrl) && item.webVideoUrl)
+    const videos: VideoData[] = hashtagResults
+      .filter((item) => item.videoUrl && item.webVideoUrl)
       .map((item) => {
-        // 🎬 動画分析のため、Apifyストレージの動画を最優先
-        // 優先順位: downloadUrl (Apifyストレージ) > videoUrl (TikTok CDN)
-        const videoFileUrl = item.downloadUrl || item.videoUrl || '';
-        
         return {
-          video_url: videoFileUrl, // 動画ファイルのURL（分析用）
+          video_url: item.videoUrl!, // 動画ファイルのURL（分析用）
           tiktok_web_url: item.webVideoUrl!, // TikTokのWebページURL（スプレッドシート用）
           views: item.playCount || 0,
-          likes: item.likeCount || 0,
+          likes: item.diggCount || 0,
           saves: item.collectCount || 0,
           comments: item.commentCount || 0,
           shares: item.shareCount || 0,
           // メタデータを追加
-          caption: item.description || '',
-          author_name: item.author_nickname || '',
-          author_username: item.author_unique_id || '',
+          caption: item.text || '',
+          author_name: item.authorMeta?.nickName || '',
+          author_username: item.authorMeta?.name || item.authorMeta?.id || '',
         };
       });
 
