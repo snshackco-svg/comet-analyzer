@@ -50,13 +50,32 @@ export async function processVideoData(
     result.logs.push(`【${platformName}】既存データの重複チェック...`);
     const existingUrls = await getExistingVideoUrls(googleCredentials, config);
     result.logs.push(`【${platformName}】既存の動画数: ${existingUrls.size}件`);
+    
+    // デバッグログ: 既存URLのサンプル表示
+    if (existingUrls.size > 0) {
+      const sampleUrls = Array.from(existingUrls).slice(0, 3);
+      result.logs.push(`【${platformName}】既存URL（サンプル）: ${sampleUrls.join(', ').substring(0, 100)}...`);
+    }
+
+    // デバッグログ: 取得した動画のURLをログ出力
+    result.logs.push(`【${platformName}】取得した動画数: ${videoData.length}件`);
+    if (videoData.length > 0) {
+      const firstVideoUrl = (videoData[0] as any).tiktok_web_url || (videoData[0] as any).instagram_web_url || videoData[0].video_url;
+      result.logs.push(`【${platformName}】取得動画（1件目URL）: ${firstVideoUrl.substring(0, 80)}...`);
+    }
 
     // 新規データのみをフィルタリング
     // WebページURL（tiktok_web_url / instagram_web_url）があればそれを、なければvideo_urlを使用
     const newVideoData = videoData.filter((data) => {
       const urlToCheck = (data as any).tiktok_web_url || (data as any).instagram_web_url || data.video_url;
-      if (existingUrls.has(urlToCheck.trim())) {
+      const isDuplicate = existingUrls.has(urlToCheck.trim());
+      
+      if (isDuplicate) {
         result.skipped_count++;
+        // デバッグログ: 重複URLを表示（最初の3件のみ）
+        if (result.skipped_count <= 3) {
+          result.logs.push(`【${platformName}】重複スキップ: ${urlToCheck.substring(0, 60)}...`);
+        }
         return false;
       }
       return true;

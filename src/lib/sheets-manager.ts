@@ -165,13 +165,22 @@ export async function getExistingVideoUrls(
     const data = await response.json();
     const values = data.values || [];
 
+    // デバッグログ: 取得したデータの確認
+    console.log(`[getExistingVideoUrls] Total rows from Sheets: ${values.length}`);
+    console.log(`[getExistingVideoUrls] First 5 rows:`, values.slice(0, 5));
+
     // ヘッダー行をスキップして、URLのセットを作成
     const urls = new Set<string>();
-    values.slice(1).forEach((row: any[]) => {
+    values.slice(1).forEach((row: any[], index: number) => {
       if (row[0]) {
         urls.add(row[0].trim());
+      } else {
+        console.log(`[getExistingVideoUrls] Empty URL at row ${index + 2}`);
       }
     });
+
+    console.log(`[getExistingVideoUrls] Total unique URLs: ${urls.size}`);
+    console.log(`[getExistingVideoUrls] Sample URLs:`, Array.from(urls).slice(0, 3));
 
     return urls;
   } catch (error: any) {
