@@ -144,7 +144,12 @@ export async function fetchTikTokFromApify(
       download_slideshows: false,
       download_audio: false,
       download_subtitles: false,
-      quality: 'highest'
+      quality: 'highest',
+      // ⚠️ Premium Actorはproxy設定が必須（レンタルプランの要件）
+      proxySettings: {
+        useApifyProxy: true,
+        apifyProxyGroups: ['RESIDENTIAL'],
+      }
     };
 
     interface PremiumResult {
@@ -178,10 +183,12 @@ export async function fetchTikTokFromApify(
 
     // メタデータから動画データを作成
     const videos: VideoData[] = premiumResults
-      .filter((item) => (item.downloadUrl || item.videoUrl) && item.playCount !== undefined)
+      .filter((item) => (item.downloadUrl || item.videoUrl || item.webVideoUrl) && item.playCount !== undefined)
       .map((item) => {
-        // downloadUrl（Apifyストレージ）を最優先、なければvideoUrl（TikTok CDN）
-        const videoUrlToUse = item.downloadUrl || item.videoUrl || '';
+        // 🎬 動画分析のため、Apifyストレージの動画を最優先
+        // Cloudflare Workersでダウンロードして、Twelve Labsにファイルアップロード
+        // 優先順位: downloadUrl (Apifyストレージ) > videoUrl (TikTok CDN) > webVideoUrl
+        const videoUrlToUse = item.downloadUrl || item.videoUrl || item.webVideoUrl || '';
         
         return {
           video_url: videoUrlToUse,

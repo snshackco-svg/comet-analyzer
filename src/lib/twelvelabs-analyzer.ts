@@ -76,8 +76,79 @@ export async function getTwelveLabsIndex(apiKey: string): Promise<string | null>
 }
 
 /**
- * 動画をIndexに追加してタスク作成
- * Note: v1.3 API requires multipart/form-data for URL-based uploads
+ * 動画URLから動画をダウンロードしてファイルとしてアップロード
+ * URLアクセスが制限されている場合、この方法を使用
+ */
+async function uploadVideoFileToIndex(
+  apiKey: string,
+  indexId: string,
+  videoUrl: string
+): Promise<string> {
+  console.log('[Twelve Labs] 🎬 Downloading video for file upload:', {
+    videoUrl,
+    indexId,
+    urlLength: videoUrl.length
+  });
+
+  try {
+    // Step 1: 動画をダウンロード
+    console.log('[Twelve Labs] 📥 Downloading video from URL...');
+    const videoResponse = await fetch(videoUrl);
+    
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.status} ${videoResponse.statusText}`);
+    }
+
+    const videoBlob = await videoResponse.blob();
+    const videoSize = videoBlob.size;
+    console.log('[Twelve Labs] ✅ Video downloaded:', {
+      size: videoSize,
+      sizeInMB: (videoSize / 1024 / 1024).toFixed(2) + ' MB',
+      type: videoBlob.type
+    });
+
+    // Step 2: FormDataで動画ファイルをアップロード
+    const formData = new FormData();
+    formData.append('index_id', indexId);
+    formData.append('video_file', videoBlob, 'video.mp4');
+    formData.append('language', 'en');
+    
+    console.log('[Twelve Labs] 📤 Uploading video file to Twelve Labs...');
+    const response = await fetch(`${BASE_URL}/tasks`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey
+        // Content-Typeは自動設定されるため指定しない
+      },
+      body: formData
+    });
+
+    console.log('[Twelve Labs] Upload response:', {
+      status: response.status,
+      ok: response.ok
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('[Twelve Labs] ❌ Upload failed:', {
+        status: response.status,
+        error: error.substring(0, 500)
+      });
+      throw new Error(`Twelve Labs: Failed to upload video file (${response.status}): ${error}`);
+    }
+
+    const data = await response.json();
+    console.log('[Twelve Labs] ✅ Task created:', data._id);
+    return data._id; // task_id
+  } catch (error: any) {
+    console.error('[Twelve Labs] ❌ File upload failed:', error.message);
+    throw new Error(`動画のアップロードに失敗しました。動画URLが有効か確認してください。詳細: ${error.message}`);
+  }
+}
+
+/**
+ * 動画をIndexに追加してタスク作成（URL方式 - 廃止予定）
+ * Note: TikTok URLは外部アクセスが制限されているため、この方式は使用しない
  */
 async function uploadVideoToIndex(
   apiKey: string,
@@ -166,7 +237,7 @@ async function waitForTask(
 
 /**
  * 動画を分析（Summarize - Custom Prompt）
- * Note: v1.3 uses 'summarize' endpoint for custom prompts
+ * Note: v1.3 uses 'summarize' endpoint for custom prompts with JSON body
  */
 async function generateAnalysis(
   apiKey: string,
@@ -177,27 +248,40 @@ async function generateAnalysis(
 ): Promise<string> {
   const prompt = buildAnalysisPrompt(platform, videoData, metrics);
 
-  // FormData形式で送信
-  const formData = new FormData();
-  formData.append('video_id', videoId);
-  formData.append('prompt', prompt);
-  formData.append('type', 'summary'); // summary type
+  console.log('[Twelve Labs] 🔍 Generating analysis with video_id:', videoId);
+
+  // JSON形式で送信（v1.3 API）
+  const requestBody = {
+    video_id: videoId,
+    prompt: prompt,
+    type: 'summary'
+  };
 
   const response = await fetch(`${BASE_URL}/summarize`, {
     method: 'POST',
     headers: {
-      'x-api-key': apiKey
-      // Content-Typeは自動設定
+      'x-api-key': apiKey,
+      'Content-Type': 'application/json'
     },
-    body: formData
+    body: JSON.stringify(requestBody)
+  });
+
+  console.log('[Twelve Labs] Analysis response:', {
+    status: response.status,
+    ok: response.ok
   });
 
   if (!response.ok) {
     const error = await response.text();
+    console.error('[Twelve Labs] ❌ Analysis failed:', {
+      status: response.status,
+      error: error.substring(0, 500)
+    });
     throw new Error(`Twelve Labs: Failed to generate analysis (${response.status}): ${error}`);
   }
 
   const data = await response.json();
+  console.log('[Twelve Labs] ✅ Analysis completed');
   return data.summary || data.data || JSON.stringify(data);
 }
 
@@ -290,8 +374,9 @@ export async function analyzeWithTwelveLabs(
       }
     }
 
-    // Step 2: 動画をアップロード
-    const taskId = await uploadVideoToIndex(apiKey, finalIndexId, videoUrl);
+    // Step 2: 動画をダウンロードしてファイルとしてアップロード
+    // TikTok URLは外部アクセスが制限されているため、ファイルアップロード方式を使用
+    const taskId = await uploadVideoFileToIndex(apiKey, finalIndexId, videoUrl);
 
     // Step 3: タスク完了を待機（最大5分）
     const videoId = await waitForTask(apiKey, taskId, 60, 5000);

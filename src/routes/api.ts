@@ -306,6 +306,10 @@ api.post('/process', async (c) => {
 
     // データを処理してスプレッドシートに保存
     const processTimer = new PerformanceTimer('Data Processing');
+    
+    // 全動画をVision分析（動画分析必須モード）
+    const visionAllCriteria = { mode: 'vision_all' as const };
+    
     const result = await processVideoData(
       platform,
       videoData,
@@ -314,7 +318,9 @@ api.post('/process', async (c) => {
       c.env?.AI, // Cloudflare AI binding
       c.env?.OPENAI_API_KEY, // OpenAI API key for GPT-4o text analysis
       c.env?.GEMINI_API_KEY, // Gemini API key for video analysis
-      c.env?.TWELVE_LABS_API_KEY // Twelve Labs API key for video analysis
+      c.env?.TWELVE_LABS_API_KEY, // Twelve Labs API key for video analysis
+      visionAllCriteria, // 全動画をVision分析
+      true // stopOnVideoAnalysisFailure: 動画分析失敗時は処理停止
     );
     processTimer.end(
       `Processed ${result.new_count}/${result.total_count} items`
@@ -675,6 +681,9 @@ api.post('/fetch-apify', async (c) => {
       videoCount: apifyResult.videos.length,
     });
 
+    // 全動画をVision分析（動画分析必須モード）
+    const visionAllCriteria = { mode: 'vision_all' as const };
+
     // データを処理してスプレッドシートに保存
     const processTimer = new PerformanceTimer('Process & Save');
     const result = await processVideoData(
@@ -688,7 +697,9 @@ api.post('/fetch-apify', async (c) => {
       c.env?.AI,
       c.env?.OPENAI_API_KEY, // OpenAI API key for GPT-4o text analysis
       c.env?.GEMINI_API_KEY, // Gemini API key for video analysis
-      c.env?.TWELVE_LABS_API_KEY // Twelve Labs API key for video analysis
+      c.env?.TWELVE_LABS_API_KEY, // Twelve Labs API key for video analysis
+      visionAllCriteria, // 全動画をVision分析
+      true // stopOnVideoAnalysisFailure: 動画分析失敗時は処理停止
     );
     processTimer.end(`Processed ${result.total_count} videos`);
 
