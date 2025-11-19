@@ -131,43 +131,47 @@ export async function fetchTikTokFromApify(
       resultsPerPage 
     });
 
-    // 🎯 clockworks~tiktok-scraper - 正しい入力形式で再試行
+    // 🎯 clockworks~tiktok-scraper - Apify Consoleで確認した正しい入力形式
     const hashtagActorId = 'clockworks~tiktok-scraper';
     
-    // 正しい入力形式：
-    // - hashtags: string[] (URLではなくハッシュタグ名)
+    // ✅ 正しい入力形式（Apify Consoleで確認済み）:
+    // - hashtags: string[] (ハッシュタグ名の配列)
     // - resultsPerPage: number
     const hashtagInput = {
-      hashtags: cleanHashtags,
+      hashtags: cleanHashtags, // ["美容"] の形式
       resultsPerPage: resultsPerPage,
-      // shouldDownloadVideos: true, // 動画もダウンロードして確実に取得
-      // shouldDownloadCovers: false,
-      // shouldDownloadSubtitles: false,
-      // shouldDownloadSlideshowImages: false,
+      shouldDownloadVideos: true, // ✅ Apifyに動画ファイルをダウンロードさせる
+      shouldDownloadCovers: false,
+      shouldDownloadSubtitles: false,
+      shouldDownloadSlideshowImages: false,
     };
     
-    debugLog(location, `clockworks~tiktok-scraper input:`, {
+    debugLog(location, `clockworks~tiktok-scraper input (verified format):`, {
       actorId: hashtagActorId,
       hashtags: cleanHashtags,
       resultsPerPage,
-      fullInput: hashtagInput
+      inputKeys: Object.keys(hashtagInput),
+      fullInput: JSON.stringify(hashtagInput)
     });
 
+    // 🔧 Apify Consoleの実際のレスポンス構造に合わせる
+    // フラット構造でドット記法のキー名を使用
     interface HashtagResult {
       id?: string;
       webVideoUrl?: string; // TikTokページURL
-      videoUrl?: string; // TikTok CDN直接URL (Apifyストレージの可能性も)
+      videoUrl?: string; // TikTok CDN直接URL（オプション）
+      mediaUrls?: string[]; // shouldDownloadVideos=trueの場合の動画URL配列
       diggCount?: number; // likes
       shareCount?: number;
       commentCount?: number;
       playCount?: number;
       collectCount?: number; // saves
       text?: string; // description
-      authorMeta?: {
-        id?: string;
-        name?: string;
-        nickName?: string;
-      };
+      // ドット記法のキー（Apify Consoleの実際のフォーマット）
+      'authorMeta.id'?: string;
+      'authorMeta.name'?: string;
+      'authorMeta.nickName'?: string;
+      'videoMeta.duration'?: number;
     }
 
     const hashtagResults: HashtagResult[] = await runApifyActor(hashtagActorId, hashtagInput, token);
@@ -197,31 +201,47 @@ export async function fetchTikTokFromApify(
       debugLog(location, '🔍 First result analysis:', {
         hasWebVideoUrl: !!firstResult.webVideoUrl,
         hasVideoUrl: !!firstResult.videoUrl,
+        hasMediaUrls: !!firstResult.mediaUrls,
+        mediaUrlsLength: firstResult.mediaUrls?.length || 0,
+        mediaUrlsSample: firstResult.mediaUrls?.[0]?.substring(0, 80),
         webVideoUrl: firstResult.webVideoUrl?.substring(0, 80),
         videoUrl: firstResult.videoUrl?.substring(0, 80),
         text: firstResult.text?.substring(0, 100),
         hashtag: cleanHashtags[0],
         textIncludesHashtag: firstResult.text?.toLowerCase().includes(cleanHashtags[0].toLowerCase()),
-        allKeys: Object.keys(firstResult).join(', ')
+        allKeys: Object.keys(firstResult).join(', '),
+        // 動画URL関連のキーを全て確認
+        videoRelatedKeys: Object.keys(firstResult).filter(k => k.toLowerCase().includes('video') || k.toLowerCase().includes('media')).join(', ')
       });
     }
 
     // メタデータから動画データを作成
     const videos: VideoData[] = hashtagResults
-      .filter((item) => item.videoUrl && item.webVideoUrl)
+      .filter((item) => item.webVideoUrl) // ✅ webVideoUrlがあればOK
       .map((item) => {
+        // 動画ファイルURLの優先順位:
+        // 1. mediaUrls[0] (shouldDownloadVideos=trueの場合)
+        // 2. videoUrl (直接URL)
+        // 3. webVideoUrl (WebページURL - Twelve Labsでダウンロードエラーになる)
+        let videoFileUrl = item.webVideoUrl!; // デフォルト
+        if (item.mediaUrls && item.mediaUrls.length > 0) {
+          videoFileUrl = item.mediaUrls[0]; // 最優先
+        } else if (item.videoUrl) {
+          videoFileUrl = item.videoUrl;
+        }
+        
         return {
-          video_url: item.videoUrl!, // 動画ファイルのURL（分析用）
+          video_url: videoFileUrl, // 動画ファイルのURL（分析用）
           tiktok_web_url: item.webVideoUrl!, // TikTokのWebページURL（スプレッドシート用）
           views: item.playCount || 0,
           likes: item.diggCount || 0,
           saves: item.collectCount || 0,
           comments: item.commentCount || 0,
           shares: item.shareCount || 0,
-          // メタデータを追加
+          // メタデータを追加（ドット記法のキーに対応）
           caption: item.text || '',
-          author_name: item.authorMeta?.nickName || '',
-          author_username: item.authorMeta?.name || item.authorMeta?.id || '',
+          author_name: item['authorMeta.nickName'] || '',
+          author_username: item['authorMeta.name'] || item['authorMeta.id'] || '',
         };
       });
 
