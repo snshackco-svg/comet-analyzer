@@ -131,18 +131,27 @@ export async function fetchTikTokFromApify(
       resultsPerPage 
     });
 
-    // 🎯 TikTok Hashtag Scraper - ハッシュタグ専用のActor
-    const hashtagActorId = 'clockworks~free-tiktok-scraper'; // 無料版のTikTok Scraper
+    // 🎯 clockworks~tiktok-scraper - 正しい入力形式で再試行
+    const hashtagActorId = 'clockworks~tiktok-scraper';
     
+    // 正しい入力形式：
+    // - hashtags: string[] (URLではなくハッシュタグ名)
+    // - resultsPerPage: number
     const hashtagInput = {
-      hashtags: cleanHashtags, // ハッシュタグ名のみ（配列）
+      hashtags: cleanHashtags,
       resultsPerPage: resultsPerPage,
-      shouldDownloadVideos: false, // まず検索のみ
-      shouldDownloadCovers: false,
-      shouldDownloadSubtitles: false,
+      // shouldDownloadVideos: true, // 動画もダウンロードして確実に取得
+      // shouldDownloadCovers: false,
+      // shouldDownloadSubtitles: false,
+      // shouldDownloadSlideshowImages: false,
     };
     
-    debugLog(location, `Hashtag Scraper input:`, hashtagInput);
+    debugLog(location, `clockworks~tiktok-scraper input:`, {
+      actorId: hashtagActorId,
+      hashtags: cleanHashtags,
+      resultsPerPage,
+      fullInput: hashtagInput
+    });
 
     interface HashtagResult {
       id?: string;
@@ -163,21 +172,37 @@ export async function fetchTikTokFromApify(
 
     const hashtagResults: HashtagResult[] = await runApifyActor(hashtagActorId, hashtagInput, token);
     
+    debugLog(location, `Actor execution complete:`, {
+      resultCount: hashtagResults?.length || 0,
+      hasResults: !!(hashtagResults && hashtagResults.length > 0)
+    });
+
     if (!hashtagResults || hashtagResults.length === 0) {
-      throw new Error(`No TikTok videos found for hashtags: ${hashtags.join(', ')}`);
+      // エラーの詳細をログ出力
+      debugLog(location, '❌ No results returned from Actor:', {
+        actorId: hashtagActorId,
+        inputHashtags: cleanHashtags,
+        resultsPerPage,
+        resultType: typeof hashtagResults,
+        resultValue: hashtagResults
+      });
+      throw new Error(`No TikTok videos found for hashtags: ${hashtags.join(', ')}. Actor may not support hashtag search or input format is incorrect.`);
     }
 
-    debugLog(location, `Hashtag Scraper Complete: Retrieved ${hashtagResults.length} videos`);
+    debugLog(location, `✅ Retrieved ${hashtagResults.length} videos from Actor`);
 
-    // デバッグ: 結果の確認
+    // デバッグ: 結果の詳細確認
     if (hashtagResults.length > 0) {
       const firstResult = hashtagResults[0];
-      debugLog(location, '🔍 Hashtag Scraper result sample (first item)', {
+      debugLog(location, '🔍 First result analysis:', {
         hasWebVideoUrl: !!firstResult.webVideoUrl,
         hasVideoUrl: !!firstResult.videoUrl,
         webVideoUrl: firstResult.webVideoUrl?.substring(0, 80),
+        videoUrl: firstResult.videoUrl?.substring(0, 80),
         text: firstResult.text?.substring(0, 100),
-        allKeys: Object.keys(firstResult)
+        hashtag: cleanHashtags[0],
+        textIncludesHashtag: firstResult.text?.toLowerCase().includes(cleanHashtags[0].toLowerCase()),
+        allKeys: Object.keys(firstResult).join(', ')
       });
     }
 
