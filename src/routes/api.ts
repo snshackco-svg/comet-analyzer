@@ -520,18 +520,21 @@ api.post('/fetch-apify', async (c) => {
     }
 
     // 取得件数のバリデーション
-    if (resultsPerPage < 1 || resultsPerPage > 200) {
+    // ⚠️ Cloudflare Workers制限: 無料プランは50サブリクエスト/リクエスト
+    // 1動画あたり15-20サブリクエスト → 安全に処理できるのは2-3動画まで
+    const maxResultsPerPage = 3; // Cloudflare Workers無料プラン制限
+    if (resultsPerPage < 1 || resultsPerPage > maxResultsPerPage) {
       const error = createDetailedError(
         'API /fetch-apify',
-        new Error(`取得件数が範囲外です（${resultsPerPage}件）`),
-        { resultsPerPage, allowedRange: '1-200' }
+        new Error(`取得件数が範囲外です（${resultsPerPage}件）。Cloudflare Workers制限により、最大${maxResultsPerPage}件です。`),
+        { resultsPerPage, allowedRange: `1-${maxResultsPerPage}`, reason: 'Cloudflare Workers subrequest limit (50/request)' }
       );
       errorLog('API /fetch-apify', 'Invalid results count', error);
       return c.json(
         {
           success: false,
           error: error.message,
-          suggestion: '取得件数は1〜200件の範囲で指定してください。',
+          suggestion: `取得件数は1〜${maxResultsPerPage}件の範囲で指定してください。大量データ収集には連続実行モードを使用してください。`,
           debug: error,
         },
         400

@@ -174,10 +174,11 @@ export async function fetchTikTokFromApify(
       'videoMeta.duration'?: number;
     }
 
-    const hashtagResults: HashtagResult[] = await runApifyActor(hashtagActorId, hashtagInput, token);
+    let hashtagResults: HashtagResult[] = await runApifyActor(hashtagActorId, hashtagInput, token);
     
     debugLog(location, `Actor execution complete:`, {
       resultCount: hashtagResults?.length || 0,
+      requestedCount: resultsPerPage,
       hasResults: !!(hashtagResults && hashtagResults.length > 0)
     });
 
@@ -191,6 +192,12 @@ export async function fetchTikTokFromApify(
         resultValue: hashtagResults
       });
       throw new Error(`No TikTok videos found for hashtags: ${hashtags.join(', ')}. Actor may not support hashtag search or input format is incorrect.`);
+    }
+
+    // 🔧 Cloudflare Workers制限対応: 取得結果を指定件数に制限
+    if (hashtagResults.length > resultsPerPage) {
+      debugLog(location, `⚠️ Limiting results from ${hashtagResults.length} to ${resultsPerPage} (Cloudflare Workers subrequest limit)`);
+      hashtagResults = hashtagResults.slice(0, resultsPerPage);
     }
 
     debugLog(location, `✅ Retrieved ${hashtagResults.length} videos from Actor`);

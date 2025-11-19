@@ -435,8 +435,12 @@ async function fetchFromApify() {
       return;
     }
 
-    if (resultsPerPage < 1 || resultsPerPage > 200) {
-      addLog('❌ 取得件数は1〜200件の範囲で指定してください', 'error');
+    // ⚠️ Cloudflare Workers制限: 最大3件まで
+    const maxResults = 3;
+    if (resultsPerPage < 1 || resultsPerPage > maxResults) {
+      addLog(`❌ 取得件数は1〜${maxResults}件の範囲で指定してください`, 'error');
+      addLog('⚠️ Cloudflare Workers制限により、1回あたり最大3件までです', 'warning');
+      addLog('💡 大量データ収集には「連続実行モード」を使用してください', 'info');
       return;
     }
 
