@@ -123,7 +123,19 @@ export async function fetchTikTokFromApify(
 
   try {
     // 🔧 ハッシュタグの形式を統一（#を削除）
-    const cleanHashtags = hashtags.map(tag => tag.replace(/^#/, '').trim());
+    let cleanHashtags = hashtags.map(tag => tag.replace(/^#/, '').trim());
+    
+    // ⚠️ CRITICAL FIX: Cloudflare Workers制限対応
+    // Apify Actorは複数ハッシュタグの場合、ハッシュタグごとにresultsPerPageを返す
+    // 例: hashtags=["美容","ネイル"], resultsPerPage=2 → 合計4件返される
+    // 解決策: ハッシュタグを1つだけに制限（最初のハッシュタグを使用）
+    if (cleanHashtags.length > 1) {
+      debugLog(location, `⚠️ Multiple hashtags detected (${cleanHashtags.length}). Using only first hashtag to avoid Workers limit.`, {
+        allHashtags: cleanHashtags,
+        selectedHashtag: cleanHashtags[0]
+      });
+      cleanHashtags = [cleanHashtags[0]]; // 最初のハッシュタグのみ使用
+    }
     
     debugLog(location, `Using TikTok Hashtag Scraper:`, { 
       originalHashtags: hashtags,
@@ -135,11 +147,11 @@ export async function fetchTikTokFromApify(
     const hashtagActorId = 'clockworks~tiktok-scraper';
     
     // ✅ 正しい入力形式（Apify Consoleで確認済み）:
-    // - hashtags: string[] (ハッシュタグ名の配列)
+    // - hashtags: string[] (ハッシュタグ名の配列 - 1つだけ使用）
     // - resultsPerPage: number
     const hashtagInput = {
-      hashtags: cleanHashtags, // ["美容"] の形式
-      resultsPerPage: resultsPerPage,
+      hashtags: cleanHashtags, // ハッシュタグ1つだけ（上で制限済み）
+      resultsPerPage: resultsPerPage, // そのまま使用
       shouldDownloadVideos: true, // ✅ Apifyに動画ファイルをダウンロードさせる
       shouldDownloadCovers: false,
       shouldDownloadSubtitles: false,
@@ -149,7 +161,9 @@ export async function fetchTikTokFromApify(
     debugLog(location, `clockworks~tiktok-scraper input (verified format):`, {
       actorId: hashtagActorId,
       hashtags: cleanHashtags,
-      resultsPerPage,
+      hashtagCount: cleanHashtags.length,
+      resultsPerPage: resultsPerPage,
+      expectedMaxResults: resultsPerPage, // ハッシュタグ1つなので結果数=resultsPerPage
       inputKeys: Object.keys(hashtagInput),
       fullInput: JSON.stringify(hashtagInput)
     });

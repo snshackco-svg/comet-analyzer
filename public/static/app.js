@@ -429,10 +429,11 @@ async function fetchFromApify() {
       return;
     }
 
-    if (hashtags.length > 10) {
-      addLog('❌ ハッシュタグは最大10個までです', 'error');
-      addLog(`現在: ${hashtags.length}個`, 'warning');
-      return;
+    // ⚠️ Cloudflare Workers制限: 複数ハッシュタグは結果数が倍増するため制限
+    if (hashtags.length > 1) {
+      addLog(`⚠️ 複数ハッシュタグが入力されています（${hashtags.length}個）`, 'warning');
+      addLog(`⚠️ Cloudflare Workers制限により、最初のハッシュタグのみ使用します: "${hashtags[0]}"`, 'warning');
+      addLog('💡 複数ハッシュタグを検索したい場合は、1つずつ実行してください', 'info');
     }
 
     // ⚠️ Cloudflare Workers制限: 最大3件まで

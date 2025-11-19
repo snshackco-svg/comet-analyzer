@@ -223,11 +223,12 @@ app.get('/', (c) => {
                             type="text" 
                             id="apify_hashtags" 
                             class="form-input" 
-                            placeholder="例: fyp, viral, trending, おすすめ"
-                            value="fyp, viral, trending"
+                            placeholder="例: 美容"
+                            value="美容"
                         />
                         <p class="text-xs text-gray-500 mt-1">
-                            複数のハッシュタグをカンマで区切って入力してください（#記号は不要、最大10個）
+                            ⚠️ <strong>Cloudflare Workers制限:</strong> 複数ハッシュタグを入力した場合、最初の1つのみ使用されます<br/>
+                            複数検索したい場合は、1つずつ実行してください（#記号は不要）
                         </p>
                     </div>
 
