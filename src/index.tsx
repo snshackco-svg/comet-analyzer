@@ -258,14 +258,13 @@ app.get('/', (c) => {
                             </label>
                             <select id="apify_results" class="form-input">
                                 <option value="1">1件（テスト用）</option>
-                                <option value="5">5件（少量テスト）</option>
-                                <option value="10" selected>10件（推奨）</option>
-                                <option value="15">15件（標準）</option>
-                                <option value="20">20件（上限）</option>
+                                <option value="2" selected>2件（推奨 - Workers制限対応）</option>
+                                <option value="3">3件（最大 - Workers無料プラン上限）</option>
                             </select>
                             <p class="text-xs text-gray-500 mt-1">
                                 💰 Twelve Labs料金: 1分動画 ≈ $0.05（無料枠: 月600分）<br/>
-                                ⏱️ 処理時間: 1動画あたり約1-2分
+                                ⏱️ 処理時間: 1動画あたり約1-2分<br/>
+                                ⚠️ <strong>Cloudflare Workers制限: 無料プランは最大3件まで</strong>（サブリクエスト50回制限）
                             </p>
                         </div>
                     </div>
@@ -288,28 +287,31 @@ app.get('/', (c) => {
                                     1回の件数
                                 </label>
                                 <select id="batch_size" class="form-input">
-                                    <option value="10" selected>10件（最も安全）</option>
-                                    <option value="15">15件（標準）</option>
+                                    <option value="2" selected>2件（安全 - Workers制限対応）</option>
+                                    <option value="3">3件（最大 - Workers無料プラン上限）</option>
                                 </select>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    ⚠️ Cloudflare Workers無料プラン制限
+                                </p>
                             </div>
                             <div class="form-group">
                                 <label for="batch_count" class="form-label">
                                     実行回数
                                 </label>
                                 <select id="batch_count" class="form-input">
-                                    <option value="5">5回</option>
-                                    <option value="10">10回</option>
-                                    <option value="15">15回</option>
-                                    <option value="20" selected>20回</option>
+                                    <option value="10">10回（20件）</option>
+                                    <option value="20" selected>20回（40件）</option>
+                                    <option value="50">50回（100件）</option>
+                                    <option value="100">100回（200件）</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="bg-gray-100 p-4 rounded-lg">
                             <p class="text-sm font-semibold text-gray-700 mb-2">📊 合計</p>
-                            <p class="text-2xl font-bold text-purple-600" id="total_items">200件</p>
-                            <p class="text-xs text-gray-600 mt-1" id="total_time">予想時間: 約20-30分</p>
-                            <p class="text-xs text-gray-600" id="total_cost">予想コスト: $16-30</p>
+                            <p class="text-2xl font-bold text-purple-600" id="total_items">40件</p>
+                            <p class="text-xs text-gray-600 mt-1" id="total_time">予想時間: 約20-30分（各実行2-3分 × 20回）</p>
+                            <p class="text-xs text-gray-600" id="total_cost">予想コスト: $2-4（1動画 ≈ $0.05-0.10）</p>
                         </div>
                     </div>
 
